@@ -1,0 +1,31 @@
+[Unit]
+Description=Remmina Standalone Wayland Kiosk
+After=network-online.target systemd-user-sessions.service
+Wants=network-online.target
+
+[Service]
+User=kiosk
+Group=kiosk
+PAMName=login
+WorkingDirectory=/var/lib/kiosk
+Environment=HOME=/var/lib/kiosk
+ExecStart=/usr/bin/cage -s -- /usr/local/bin/remmina-kiosk.sh
+Restart=always
+RestartSec=3
+
+#Required permissions for libseat to acquire the console
+StandardInput=tty
+StandardOutput=journal
+TTYPath=/dev/tty7
+UtmpIdentifier=tty7
+TTYReset=yes
+TTYVHangup=yes
+
+
+# Sandboxing
+ProtectSystem=yes
+ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=kiosk.target

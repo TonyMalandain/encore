@@ -1,0 +1,7 @@
+[Unit]
+Description=Remmina Kiosk Mode Target
+Documentation=man:systemd.special(7)
+Requires=multi-user.target
+Wants=remmina-kiosk.service
+After=multi-user.target rescue.service rescue.target
+AllowIsolate=yes
