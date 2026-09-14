@@ -1,0 +1,54 @@
+# Encore — connection profile template
+#
+# Copy this onto a terminal as
+#   /var/lib/encore/.local/share/remmina/encore-kiosk.remmina
+# owned by the encore user, mode 600, then fill in the three CHANGEME values.
+#
+# Do NOT put a password in this file by hand. Set it on the terminal with:
+#   remmina --update-profile <path> --set-option username=<user> --set-option password=<pw>
+# which encrypts it with a key generated on that machine. Never copy a
+# remmina.pref from another machine — see README.md.
+#
+# Settings below are the ones observed working on 2026-09-14. Anything not
+# listed here is left at the client's own default on purpose.
+
+[remmina]
+protocol=RDP
+
+# --- Fill these in -----------------------------------------------------
+name=CHANGEME-terminal-name
+server=CHANGEME-hostname-or-ip
+username=CHANGEME-connection-account
+password=
+# -----------------------------------------------------------------------
+
+# Fullscreen, no window furniture. The person at the terminal sees the
+# session and nothing else.
+viewmode=4
+window_maximize=1
+resolution_mode=2
+resolution_width=0
+resolution_height=0
+scale=2
+colordepth=99
+quality=0
+
+# Self-signed certificates are normal for a desktop host on a home network.
+# This accepts whatever answers to the name above, which is a known hole —
+# see R-16 in docs/product/solution.md.
+ignore-tls-errors=1
+
+# Keep trying when the machine at the other end is unreachable.
+disableautoreconnect=0
+
+# The clipboard is not shared with the session (D-019). There is nothing
+# local to copy from or paste into.
+disableclipboard=1
+
+# The password must be storable, or an unattended terminal cannot connect.
+disablepasswordstoring=0
+
+# Audio. Sound belongs to the terminal in both directions (D-009, D-014),
+# and that is NOT delivered yet — this line is the client default and is
+# expected to change when backlog item 5 is done.
+sound=off

@@ -1,0 +1,16 @@
+# Credentials and connection profiles — never tracked.
+# A .remmina file carries an encrypted password; remmina.pref carries the key
+# that decrypts it. Either alone is a secret; together they are the password
+# in plain text.
+*.remmina
+remmina.pref
+
+# Templates are tracked deliberately — they carry no host, no account and no
+# password. They are named *.template so the rules above cannot match them.
+
+# Local notes and scratch
+*.log
+*.swp
+
+# Superseded product record, kept locally only
+docs/product-ignore/

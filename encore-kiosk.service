@@ -1,0 +1,39 @@
+[Unit]
+Description=Encore Standalone Wayland Kiosk
+After=network-online.target systemd-user-sessions.service
+Wants=network-online.target
+
+[Service]
+User=encore
+Group=encore
+PAMName=login
+WorkingDirectory=/var/lib/encore
+Environment=HOME=/var/lib/encore
+#purposefully disable gnome-keyring for password storage
+InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
+InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
+InaccessiblePaths=-/usr/lib/arm-linux-gnueabihf/remmina/plugins/remmina-plugin-secret.so
+ExecStartPre=+/usr/bin/chvt 7
+ExecStart=/usr/bin/cage -s -- /usr/local/bin/encore-kiosk.sh
+ExecStopPost=+/usr/bin/chvt 1
+Restart=always
+RestartSec=3
+TimeoutStopSec=10s
+KillMode=mixed
+
+#Required permissions for libseat to acquire the console
+StandardInput=tty
+StandardOutput=journal
+TTYPath=/dev/tty7
+UtmpIdentifier=tty7
+TTYReset=yes
+TTYVHangup=yes
+
+
+# Sandboxing
+ProtectSystem=yes
+#ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=encore-kiosk.target
