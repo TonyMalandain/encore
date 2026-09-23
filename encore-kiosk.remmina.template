@@ -1,54 +1,114 @@
 # Encore — connection profile template
 #
-# Copy this onto a terminal as
-#   /var/lib/encore/.local/share/remmina/encore-kiosk.remmina
-# owned by the encore user, mode 600, then fill in the three CHANGEME values.
+# GENERATED from the profile observed working on 2026-09-14, by copying it
+# verbatim and blanking only the four fields below. Do not hand-curate this
+# file: the previous version was a tidied, commented abstraction of the same
+# profile and had silently lost cert_ignore, which cost a debugging session.
+# If it needs to change, change a working profile, prove it, and regenerate.
 #
-# Do NOT put a password in this file by hand. Set it on the terminal with:
-#   remmina --update-profile <path> --set-option username=<user> --set-option password=<pw>
-# which encrypts it with a key generated on that machine. Never copy a
-# remmina.pref from another machine — see README.md.
-#
-# Settings below are the ones observed working on 2026-09-14. Anything not
-# listed here is left at the client's own default on purpose.
-
+# Fill in: server, username. Set the password with encore-install.sh, never
+# by hand — it is encrypted with a key generated on that machine.
 [remmina]
-protocol=RDP
-
-# --- Fill these in -----------------------------------------------------
-name=CHANGEME-terminal-name
-server=CHANGEME-hostname-or-ip
-username=CHANGEME-connection-account
 password=
-# -----------------------------------------------------------------------
-
-# Fullscreen, no window furniture. The person at the terminal sees the
-# session and nothing else.
-viewmode=4
-window_maximize=1
-resolution_mode=2
-resolution_width=0
-resolution_height=0
-scale=2
-colordepth=99
-quality=0
-
-# Self-signed certificates are normal for a desktop host on a home network.
-# This accepts whatever answers to the name above, which is a known hole —
-# see R-16 in docs/product/solution.md.
-ignore-tls-errors=1
-
-# Keep trying when the machine at the other end is unreachable.
-disableautoreconnect=0
-
-# The clipboard is not shared with the session (D-019). There is nothing
-# local to copy from or paste into.
-disableclipboard=1
-
-# The password must be storable, or an unattended terminal cannot connect.
-disablepasswordstoring=0
-
-# Audio. Sound belongs to the terminal in both directions (D-009, D-014),
-# and that is NOT delivered yet — this line is the client default and is
-# expected to change when backlog item 5 is done.
+gateway_username=
+smartcard_pin=
+vc=
+notes_text=
+window_height=1112
+preferipv6=0
+ssh_tunnel_loopback=0
+serialname=
+tls-seclevel=
 sound=off
+scale=2
+printer_overrides=
+name=encore-terminal
+console=0
+colordepth=99
+smartcard-logon=0
+security=
+precommand=
+disable_fastpath=0
+postcommand=
+left-handed=0
+multitransport=0
+window_width=1042
+group=
+server=CHANGEME-hostname-or-ip
+ssh_tunnel_certfile=
+glyph-cache=0
+rdp_idle_keypress_combo=1
+disableclipboard=0
+rdp_idle_keypress_time=No
+disconnect-prompt=0
+ssh_tunnel_command=
+monitorids=
+cert_ignore=1
+labels=
+parallelpath=
+protocol=RDP
+serialpermissive=0
+old-license=0
+audio-output=
+resolution_mode=2
+ssh_tunnel_enabled=0
+assistance_mode=0
+pth=
+loadbalanceinfo=
+disableautoreconnect=0
+clientbuild=
+gateway_server=
+ssh_tunnel_password=
+resolution_width=0
+drive=
+relax-order-checks=0
+base-cred-for-gw=0
+profile-lock=0
+gateway_domain=
+rdp2tcp=
+serialdriver=
+rdp_reconnect_attempts=
+domain=
+gateway_password=
+username=CHANGEME-connection-account
+restricted-admin=0
+clientname=
+exec=
+network=none
+serialpath=
+enable-autostart=0
+force_multimon=0
+usb=
+ssh_tunnel_passphrase=
+shareparallel=0
+multimon=0
+disablepasswordstoring=0
+quality=0
+shareprinter=0
+viewmode=4
+smartcardname=
+parallelname=
+span=0
+ssh_tunnel_auth=0
+keymap=
+ssh_tunnel_username=
+execpath=
+shareserial=0
+resolution_height=0
+rdp_mouse_jitter=No
+useproxyenv=0
+sharesmartcard=0
+freerdp_log_filters=
+microphone=
+timeout=
+ssh_tunnel_privatekey=
+gwtransp=http
+ssh_tunnel_server=
+ignore-tls-errors=1
+window_maximize=1
+dvc=
+gateway_usage=0
+disable-smooth-scrolling=0
+no-suppress=0
+freerdp_log_level=INFO
+websockets=0

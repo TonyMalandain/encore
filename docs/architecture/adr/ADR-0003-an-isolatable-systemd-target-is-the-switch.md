@@ -2,8 +2,13 @@
 - **Date:** 2026-09-13 (recorded; the choice was made earlier and undated)
 - **Kind:** one-way door
 
-> **Reconstructed from code.** `kiosk.target` declares `AllowIsolate=yes`,
-> `Requires=multi-user.target`, and `Wants=remmina-kiosk.service`.
+> **Reconstructed from code.** `encore-kiosk.target` declares
+> `AllowIsolate=yes` (`:7`), `Requires=multi-user.target` (`:4`), and
+> `Wants=encore-kiosk.service` (`:5`).
+>
+> *Citations corrected and re-checked 2026-09-23. The target was `kiosk.target`
+> when this was written; D-022 renamed it on 2026-09-13 and the code shipped on
+> 2026-09-14. The decision is unchanged.*
 
 ## Context
 Three requirements land on one mechanism. R-4: converting a machine is an
@@ -17,7 +22,8 @@ depend on — so it is effectively public interface.
 ## Options
 
 **A custom systemd target, isolatable** — activation is
-`systemctl set-default kiosk.target`, deactivation is setting the default back.
+`systemctl set-default encore-kiosk.target`, deactivation is setting the
+default back.
 *Forever cost:* the target name becomes public and appears in every written
 instruction, so it can never be renamed after publication; `isolate` is a blunt
 instrument that stops everything not wanted by the target, so the target's
@@ -51,12 +57,51 @@ service.
 
 **No longer possible:** renaming the target after a stranger has read the
 instructions. This is why it is a **one-way door**, and it is why the name
-`kiosk.target` deserves one moment of thought before publication — it is
-generic enough to collide with another package on the same machine. A namespaced
-name such as `thinclient-kiosk.target` costs nothing today and is impossible
-later.
+deserved one moment of thought before publication — `kiosk.target`, as it was
+originally written, is generic enough to collide with another package on the
+same machine.
 
 ## Revisit when
 Before the first published release — specifically to settle the target name and
 the `Wants=` / `Requires=` question. After publication this decision is
 effectively frozen.
+
+---
+
+## Addendum, 2026-09-23 — both "revisit when" conditions have been met and
+## closed
+
+This ADR asked for two things to be settled before publication. Both are
+settled, and neither reverses the decision, so this is an addendum rather than
+a supersession.
+
+**1. The name.** Closed by D-022 and D-023 on 2026-09-13 and shipped on
+2026-09-14: the target is `encore-kiosk.target` and the identity that runs it
+is `encore`. This also closes question Q-4 in `NOTES.md` — "is `kiosk.target`
+too generic a name to publish?" — which was asked on 2026-09-13 and answered
+the same day by the author, before this ADR's citations were updated. The
+namespaced form this section asked for exists; the prefix chosen was the
+product's name rather than the repository's, which is what D-022 reasons
+about.
+
+**2. `Wants=` versus `Requires=`.** Closed by ADR-0007 on 2026-09-14 in favour
+of `Wants=`, with the reason recorded there: under ADR-0007 the *service* is
+the accountable object and its own state tells the truth, so `Requires=` adds
+no signal — and it would tear the target down on precisely the failure where a
+still, inspectable machine is worth most.
+
+**The one-way door has been walked through.** `encore-install.sh:165-166`
+prints both activation commands verbatim and `encore-uninstall.sh:81` compares
+against the target name as a literal string. The name is now load-bearing in
+code as well as in prose.
+
+**What this ADR did not anticipate, and the record should carry it here:**
+`systemctl isolate encore-kiosk.target` on a machine already running a desktop
+did **not** bring the capability's console to the foreground. Whether a machine
+that *boots* into the target behaves the same way is **untested** — Test 7 in
+`docs/tests.md` has never been run. If boot is affected too, the `isolate`
+half of this decision's "activation is one command" claim is weaker than
+stated; if only `isolate` is affected, the lasting activation path is sound and
+the fault belongs to switching away from a live session. Neither branch is
+established, and this is recorded as untested rather than as either.
+

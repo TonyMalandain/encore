@@ -2,8 +2,15 @@
 - **Date:** 2026-09-13 (recorded; the choice was made earlier and undated)
 - **Kind:** reversible
 
-> **Reconstructed from code.** `group_rdp_server_server.remmina:38` sets
+> **Reconstructed from code.** `encore-kiosk.remmina.template:49` sets
 > `protocol=RDP`.
+>
+> *Citation moved 2026-09-23. It used to point at
+> `group_rdp_server_server.remmina:38`, an untracked personal connection
+> profile at the repository root which is not shipped and will never exist on
+> an adopter's machine. The template is the artifact we ship and it says the
+> same thing. The decision is unchanged. FreeRDP 3.31 was the implementation
+> observed working on 2026-09-23.*
 
 ## Context
 D-002 puts the machine being connected to out of scope, so the protocol is

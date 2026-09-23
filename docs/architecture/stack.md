@@ -1,24 +1,52 @@
 # Stack — every choice, and why
 
 The whole system is assembly of parts that already exist on the target machine.
-Nothing here was written by us except sixteen lines of shell. **That is the
-single best property this architecture has**, and it should be defended: the
-problem statement says the pieces are "all free and all present on an ordinary
-Linux system", and the product is the assembly, not the parts.
+**That is the single best property this architecture has**, and it should be
+defended: the problem statement says the pieces are "all free and all present
+on an ordinary Linux system", and the product is the assembly, not the parts.
 
-| Part | Version pinned? | Role | Decision |
-|---|---|---|---|
-| systemd | no | activation, supervision, sandboxing | ADR-0003 |
-| cage | no | single-window Wayland compositor | ADR-0002 |
-| Remmina | no | remote desktop client | ADR-0001 |
-| FreeRDP (via Remmina) | no | the RDP protocol | ADR-0004 |
-| POSIX `sh` | n/a | the sixteen-line runner | — |
-| PAM (`PAMName=login`) | n/a | acquiring a logind seat so libseat can take the console | — |
+**Corrected 2026-09-23.** This used to read "nothing here was written by us
+except sixteen lines of shell". That is no longer true and has not been since
+the install scripts landed: the runner is still 16 lines, but
+`encore-install.sh` is about 170 and `encore-uninstall.sh` about 140. Under
+D-027 that is deliberate — the scripts are the install mechanism, in place of a
+package — and it moves the shell we maintain from "a footnote" to "most of the
+code in the product". Worth saying plainly, because the old sentence was the
+strongest argument in this file and it was quietly becoming false.
 
-**Nothing is version-pinned anywhere.** For a project that installs onto
-machines we have never seen, that is a real exposure: a Remmina behaviour
-change upstream silently changes what a child sees. Packaging (R-4) is the
-place to declare minimum versions, and it must.
+| Part | Version pinned? | Version seen working | Role | Decision |
+|---|---|---|---|---|
+| systemd | no | — (Ubuntu 26.04 stock) | activation, supervision, sandboxing | ADR-0003 |
+| cage | no | 0.2.1 | single-window Wayland compositor | ADR-0002 |
+| Remmina | no | 1.4.43 | remote desktop client | ADR-0001 |
+| FreeRDP (via Remmina) | no | 3.31 | the RDP protocol | ADR-0004 |
+| `kbd` (`chvt`) | no | — | bringing the capability's console to the foreground | — |
+| POSIX `sh` | n/a | — | the runner (16 lines) and the install/uninstall scripts (~170 and ~140) | — |
+| PAM (`PAMName=login`) | n/a | — | acquiring a logind seat so libseat can take the console | — |
+
+The "version seen working" column is one observation: a clean Ubuntu 26.04
+x86_64 VM on 2026-09-23. It is not a support matrix and nothing else has ever
+been tried.
+
+**`kbd` was added to this table on 2026-09-23.** It is installed by
+`encore-install.sh:83` and the unit depends on `chvt` at `:16` and `:18`. It
+had been missing from the record entirely, which means the stack had five parts
+in this file and six on a real machine.
+
+**Nothing is version-pinned anywhere, and under D-027 nothing ever will be by a
+resolver.** This section used to say "packaging (R-4) is the place to declare
+minimum versions, and it must". There is no packaging (D-027, 2026-09-23), so
+the only place left is `encore-install.sh` — and it does not check a version of
+anything (`:79-83`). Two consequences follow, and both are now the installer's
+or nobody's:
+
+- **The systemd ≥ 254 floor that ADR-0007 depends on is unenforced.** Older
+  systemd ignores `RestartSteps=` and `RestartMaxDelaySec=` silently and gives
+  flat retries. See `constraints.md` C-1.
+- **A Remmina behaviour change upstream silently changes what a child sees.**
+  D-024 says the product tracks current releases and carries no compatibility
+  handling, which makes this an accepted cost rather than an oversight — but
+  the acceptance is only as good as the check that is not there.
 
 ---
 
@@ -65,7 +93,9 @@ are here.
 
 **Remmina itself is healthy**, and that is the dependency that counts: v1.4.42
 released 2026-02-14, maintained, primary repository on GitLab with a GitHub
-mirror. Checked 2026-09-13.
+mirror. Checked 2026-09-13; 1.4.43 was the version running on the clean VM on
+2026-09-23, so the distribution is tracking upstream closely, which is what
+D-024 assumes.
 
 Sources: [Remmina Kiosk Edition](https://remmina.org/remmina-kiosk-edition/),
 [remmina-gnome-xsession.desktop](https://github.com/FreeRDP/Remmina/blob/master/data/desktop/remmina-gnome-xsession.desktop),
@@ -81,5 +111,19 @@ Sources: [Remmina Kiosk Edition](https://remmina.org/remmina-kiosk-edition/),
   a whole component and a whole config format. Good call, kept.
 - **A user-level systemd unit** (`systemctl --user`) instead of a system unit.
   Would make `XDG_RUNTIME_DIR`, the Wayland socket and PipeWire correct by
-  construction — which is exactly the thing currently broken by
-  `ProtectHome=true`. Worth revisiting; see `debt.md`, item D-A6.
+  construction. **Corrected 2026-09-23:** this used to say "exactly the thing
+  currently broken by `ProtectHome=true`". `ProtectHome=` is now commented out
+  (`encore-kiosk.service:35`) precisely because it broke that, so the symptom
+  is gone and the structural point stands on its own — a system unit is still
+  hand-building what a user session provides. See `debt.md`, items D-A4 and
+  D-A6.
+
+- **A distribution package.** Decided against, by the author, as D-027 on
+  2026-09-23: no `.deb` is built and none is planned. Installing is a clone of
+  the repository plus `encore-install.sh`; undoing is `encore-uninstall.sh`.
+  This is a product decision, not an architecture one, but three architecture
+  facts follow from it and are recorded where they bite: `/usr/local/bin` is
+  now the correct install path rather than a policy violation
+  (`interfaces.md` I-5), nothing declares a dependency version (above), and
+  reversibility is kept by our own uninstaller rather than by a package
+  manager's file list (`constraints.md` C-3).

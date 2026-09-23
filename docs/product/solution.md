@@ -1,9 +1,9 @@
 # The envisioned solution
 
 ## In one sentence
-Install a package on an old Linux machine, point it at a computer, switch it
-on, and that machine becomes a kiosk terminal — and switching it off gives you
-the old machine back.
+Install this on an old Linux machine, point it at a computer, switch it on, and
+that machine becomes a kiosk terminal — and switching it off gives you the old
+machine back.
 
 ## What we are building
 
@@ -13,7 +13,7 @@ that, while the capability is active, the screen is given over entirely to a
 remote session and nothing local can take it back.
 
 Three things follow from that, and they are the whole product. **It is
-installable** — a package, a short configuration step naming the machine to
+installable** — an install, a short configuration step naming the machine to
 connect to, and an activation. **It is a kiosk** — the person sitting at the
 terminal is shown whatever the machine at the other end puts on the screen,
 and nothing else. There is no local desktop to escape to, no settings to
@@ -49,9 +49,11 @@ Environment first, so a reader can rule themselves out quickly.
 
 `real` and `intended` are truth markers, not a schedule. Where a `real`
 requirement carries an **Evidence** line, that line says how strongly it is
-known, and the strongest evidence this record holds is a careful read of the
-prototype by the architect — nothing here has been watched working on an old
-machine. `read in code` therefore means read, not observed.
+known. Some of this record was read in the prototype's code and never watched;
+a little of it has been watched on a virtual machine — first on 2026-09-14, and
+again on 2026-09-23 on a machine converted from nothing by following the
+written procedure. Nothing here has been watched working on an old machine.
+`read in code` therefore means read, not observed.
 
 ### R-1 — The terminal runs a Linux with the apt package manager, Wayland, and systemd
 - **Serves:** the adopter reusing "old computers sitting in a cupboard" — this
@@ -117,21 +119,41 @@ terminal."* Withdrawn because signing in happens inside the connection, and
 everything inside the connection belongs to the machine being connected to.
 The number is retired and is never reused.
 
-### R-8 — A reboot or a dropped connection returns to the remote login screen, never to a local desktop
-- **Serves:** "if the machine ever drops back to its own local desktop… it has
-  quietly become an unmanaged computer in a child's room".
+### R-8 — An active terminal survives a restart and comes back by itself
+- **Serves:** "if the machine ever drops back to its own local desktop — after a
+  reboot… — then it has stopped being a terminal and quietly become an
+  unmanaged computer in a child's room".
 - **Who it serves:** person at the terminal, terminal administrator.
-- **What they get:** the terminal recovers by itself, unattended, and there is
-  no state in which it is an ordinary computer.
-- **State:** `real`
-- **Evidence:** read in code, never observed. Two qualifications, neither of
-  which unmakes the requirement. Recovery is real but silent: a terminal that
-  has been failing to reach the machine at the other end for days looks the
-  same, to the administrator managing it without a screen, as one that is
-  working — the open question Q-P3 in `NOTES.md`. And the second half of this
-  requirement, that there is no state in which the machine is an ordinary
-  computer, is R-6's promise borrowed; it is only as strong as R-6, which is
-  now `intended`.
+- **What they get:** a terminal that has been switched on stays switched on. It
+  comes back from a reboot or a power cut to the remote login screen with
+  nobody touching it, ready for the person sitting at it to sign in to the
+  machine at the other end.
+- **State:** `intended`
+- **Note:** this is a property of a terminal being active, not of how it was
+  activated. A way of switching the capability on that lasts only until the
+  next restart does not satisfy this requirement. Splitting this from R-18 on
+  2026-09-21: surviving a restart and surviving a dropped connection are two
+  different promises with two different mechanisms behind them, and one marker
+  covering both let the weaker borrow the stronger's credibility.
+
+### R-18 — A dropped connection is retried, and nothing local appears while it is down
+- **Serves:** "if the machine ever drops back to its own local desktop — …after
+  the connection dies, after any hiccup — then it has stopped being a
+  terminal".
+- **Who it serves:** person at the terminal, terminal administrator.
+- **What they get:** a connection that fails or dies is retried indefinitely
+  and unattended, and while it is down the person in front of the terminal is
+  never handed a local application, an error dialog, or anything else they
+  could act on. The terminal returns to the remote login screen by itself when
+  the machine at the other end can be reached again.
+- **State:** `intended`
+- **Note:** indefinite retry is D-020, which separates this case from a broken
+  configuration — a terminal whose configuration is missing or invalid stops
+  instead (R-17). Waiting is the normal case, not the exceptional one: the
+  machine at the other end is expected to be down about one per cent of the
+  time (D-026), so a terminal must sit through an outage patiently and without
+  complaint. What the person at the terminal sees while it waits, and for how
+  long, is not settled — an open question in `NOTES.md`.
 
 ### R-9 — Only the machine's root administrator can deactivate the capability
 - **Serves:** "a child who can turn the kiosk off has simply been given an
@@ -141,15 +163,24 @@ The number is retired and is never reused.
   the terminal.
 - **State:** `intended`
 
-### R-10 — The administrator can reach the machine without the screen
+### R-10 — An active terminal can be administered from another machine
 - **Serves:** "once the capability is on, the screen belongs to the remote
-  session".
+  session, so the administrator has to be able to reach the machine some other
+  way".
 - **Who it serves:** terminal administrator.
-- **What they get:** a text console and remote access still work on an active
-  terminal, so it can be managed and switched off.
+- **What they get:** they can reach an active terminal from elsewhere on the
+  household network, manage it and switch it off, without its screen and
+  without being in the room.
 - **State:** `real`
-- **Evidence:** read in code, never observed. The text console half of this is
-  the same arrangement that weakens R-6 — see Q-P1 in `NOTES.md`.
+- **Evidence:** observed on a virtual machine, 2026-09-14 — reaching the
+  terminal from another machine kept working while its screen was unusable and
+  its own controls were wedged. One machine, once.
+- **Note:** this is about reaching the terminal *from somewhere else*. Whether
+  a person sitting physically at the terminal can get to a text login prompt on
+  it is a separate matter, settled by D-017, and it neither strengthens nor
+  weakens this requirement. The two were worded as one until 2026-09-21, which
+  caused a local failure to be read as evidence against this requirement when
+  it was not.
 
 ### R-11 — Deactivating returns the machine to what it was
 - **Serves:** "if turning the capability on cannot be undone cleanly, then
@@ -226,7 +257,7 @@ The number is retired and is never reused.
   plain message saying it is not configured, and stops. It never offers a local
   application instead, and it does not keep trying until someone has repaired
   the configuration. A terminal that simply cannot reach the machine it was
-  pointed at is a different case and keeps trying (R-8).
+  pointed at is a different case and keeps trying (R-18).
 - **State:** `intended`
 
 ## What the solution is not

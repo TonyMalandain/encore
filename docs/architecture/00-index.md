@@ -4,35 +4,49 @@
 documents on this date; the record itself was opened the same day by reading
 the prototype)
 
+**Last correction sweep: 2026-09-23.** The whole record was checked against the
+code and rewritten where it disagreed. Three things had gone stale: the names
+(D-022 and D-023 renamed everything on 2026-09-13, the code shipped on
+2026-09-14, this record had not followed), the packaging assumption (D-027 on
+2026-09-23 says there will never be a package), and the health claims (the
+product has been watched working twice since this record said nothing had ever
+been observed). Every `file:line` was re-checked against the file, not renamed.
+
 This is the engineering half of the record. `docs/product/` says what the
 product is for and what was decided; this says what shape it has and why.
 Mechanism — paths, units, config keys, protocols, libraries — lives only here.
 
 | Doc | What's in it |
 |---|---|
-| `NOTES.md` | Append-only working log. **Empty of findings** — everything folded on 2026-09-13. Four open questions remain, one of them closed and kept as a record. |
-| `overview.md` | The system on one page, with a diagram: four components, one boundary, and how the record was started. |
-| `boundaries.md` | The five parts, what each owns, and the configuration boundary that does not exist yet. |
-| `interfaces.md` | Six contracts, all of them files or paths — which are public, which are fragile, and that the RDP contract now includes the host's identity. |
-| `data.md` | The complete data inventory, the honest account of the one secret, and why the profile cannot travel without its key file. |
-| `constraints.md` | The environment, the absolutes, the fleet size of two or three, and the one real conflict in the design. |
-| `stack.md` | Every part, all of them adopted, none of them pinned — plus why `remmina-gnome` and the platforms were rejected. |
-| `debt.md` | Eleven items found by reading the prototype, worst first, with what each is waiting on. |
-| `adr/` | Six decisions: four reconstructed from code, two the author's own. |
+| `NOTES.md` | Append-only working log. Open questions Q-1, Q-2, Q-4, Q-5, Q-7 and Q-8, plus four findings from 2026-09-23 of which two are for the product manager. Q-3 and Q-6 are closed and kept as a record. |
+| `overview.md` | The system on one page, with a diagram: the installer, four installed parts, one boundary, and what has actually been watched. |
+| `boundaries.md` | The six parts, what each owns, what it must not know — including the configuration boundary, which now exists — and the one job nothing owns. |
+| `interfaces.md` | Seven contracts, all of them files or paths: which are public, which are fragile, and which changed status when the package went away. |
+| `data.md` | The complete inventory, split by deactivate versus uninstall; the honest account of the one secret; and why the key no longer has to travel. |
+| `constraints.md` | The environment, the absolutes, the fleet size of two or three, and the conflict the design must not hide. |
+| `stack.md` | Every part, all adopted, none pinned — and why nothing will ever pin them now. |
+| `debt.md` | Fourteen items, worst first, with what each is waiting on. Three of the original eleven are repaid or void; three new ones were found on 2026-09-23. |
+| `adr/` | **Seven** decisions: four reconstructed from code, three the author's or the architect's own. |
 
 ## Decisions on file
 
 | ADR | Decision | Kind | Status |
 |---|---|---|---|
 | ADR-0001 | Remmina is the remote desktop client | reversible | accepted; deciding reason **confirmed by the author** 2026-09-13 |
-| ADR-0002 | `cage` is the single-window Wayland compositor | reversible | accepted (reconstructed) |
-| ADR-0003 | An isolatable systemd target is the on/off switch | **one-way door** | accepted (reconstructed); name and `Wants=`/`Requires=` to settle before publication |
+| ADR-0002 | `cage` is the single-window Wayland compositor | reversible | accepted (reconstructed); addendum 2026-09-23 |
+| ADR-0003 | An isolatable systemd target is the on/off switch | **one-way door** | accepted (reconstructed); **both "revisit when" conditions closed** — addendum 2026-09-23 |
 | ADR-0004 | RDP is the protocol | reversible | accepted (reconstructed) |
 | ADR-0005 | Assemble from systemd parts, not a thin-client platform | reversible | accepted (author's own reasoning) |
 | ADR-0006 | The README is a lab procedure, not the reader-facing explanation | reversible | accepted — **architect's call, not yet ratified by the author** |
+| ADR-0007 | systemd owns recovery; the runner is a launcher, not a supervisor | reversible | accepted 2026-09-14; addendum 2026-09-23 — its missing premise is now D-026 |
+
+**Seven, not six.** This heading said "six decisions" while the table below it
+listed seven. Corrected 2026-09-23.
 
 **None is superseded.** ADRs are never renumbered or deleted; a replaced one is
-marked superseded in place.
+marked superseded in place. Where a decision has been confirmed, narrowed or
+overtaken by events without being reversed, an addendum is appended to it with
+the date — three carry one as of 2026-09-23.
 
 **ADR-0002 to ADR-0004 are reconstructed, not recorded.** The choices are real
 and visible in the code; the reasons were never written down, so the Context
@@ -43,10 +57,11 @@ reason in each.
 **ADR-0001 was reconstructed and has since been confirmed.** On 2026-09-13 the
 author gave the reasoning: wide apt availability, and — the load-bearing one,
 which the reconstruction had missed — that Remmina's own GUI builds reusable
-configuration files. The author is not committed to Remmina if something
-better appears; the one live trigger is whether the profile format can carry
-certificate pinning and audio defaults, which is to be decided inside the
-configuration design (item D-A7 in `debt.md`), not before it.
+configuration files. Note that the install path no longer relies on copying a
+file built elsewhere: the profile comes from a template and the password is set
+on the terminal (`data.md`). The author is not committed to Remmina if
+something better appears; the live trigger is whether the profile format can
+carry certificate pinning and audio defaults.
 
 **ADR-0005 is the author's own**, given on 2026-09-13. It is the standing
 answer to "why not LTSP?".
@@ -60,78 +75,103 @@ rather than absorbed silently.
 ## How to read this record
 
 1. **`overview.md` first.** It is one page and it is the whole system.
-2. **`debt.md` second, if you are about to change anything.** Eleven items,
-   and the top three are the difference between a terminal and an unmanaged
+2. **`debt.md` second, if you are about to change anything.** Fourteen items,
+   and the top two are the difference between a terminal and an unmanaged
    computer in a child's bedroom.
 3. `NOTES.md` for the questions still waiting on a human.
 
 ## Health of this record
 
-- **Nothing here has been observed at runtime.** `which remmina cage`,
-  `getent passwd kiosk` and `ls /var/lib/kiosk` all returned empty on the
-  development machine on 2026-09-13, no unit is installed, and `BACKLOG.md`
-  confirms nothing has been run end to end on any old machine. The terminals
-  themselves are elsewhere and unobserved. Every behavioural claim is a code
-  read. Findings reasoned from documented behaviour rather than observed are
-  marked `assumed` where they appear.
-- **The product record no longer claims otherwise either.** After the
-  architecture report of 2026-09-13 the product manager downgraded R-6 from
-  `real` to `intended` and retired the phrase `verified in code` across the
-  whole requirement set in favour of "read in code, never observed". The
-  strongest evidence in this project, on both sides, is now openly stated to
-  be a code read.
-- **File-line references were re-checked against the repository root on
-  2026-09-13** — `remmina-kiosk.sh`, `remmina-kiosk.service`, `kiosk.target`
-  and `group_rdp_server_server.remmina`. All of them still point at the line
-  they describe; none is stale. **No file-line reference has ever been checked
-  against a deployed system**, because there is not one.
-- One reference *outside* this record is stale and is not ours to fix:
-  `BACKLOG.md`'s R-13 row still says "there is no readme". `README.md` exists
-  as of 2026-09-13 — see ADR-0006 — but it is a lab procedure and does not
-  satisfy R-13.
+**Rewritten 2026-09-23. This section used to say "nothing here has been
+observed at runtime" and that has been false since 2026-09-14.**
+
+- **The product has been watched working, twice.** On 2026-09-14, on a VM, a
+  remote session appeared for the first time — reaching it needed three things
+  the record did not describe: the capability's console must be the foreground
+  one, the credential must be written on the terminal rather than copied to it,
+  and the client's keyring plugin must be out of reach. On 2026-09-23, on a
+  clean Ubuntu 26.04 VM built by following the written procedure, a session
+  appeared again. Remmina 1.4.43, cage 0.2.1, FreeRDP 3.31, x86_64.
+- **The `getent passwd kiosk` / `ls /var/lib/kiosk` evidence is void twice
+  over.** It was a check for a user that has since been renamed (D-023), run on
+  the development machine, which was never where a terminal was going to be.
+- **What is confirmed rather than argued, as of 2026-09-23:** the encryption
+  key is created on the terminal during the password step, so nothing secret
+  travels between machines and every terminal has its own key. That closes an
+  open product question from 2026-09-14 and narrows `debt.md` item D-A5.
+- **What is still a code read**, and says so where it appears: everything about
+  a *dropped* connection (Test 2, never run), reversibility (Test 4, never
+  run), audio (Test 5, never run), and surviving a reboot (Test 7, never run).
+  `docs/tests.md` is the authority on which is which.
+- **File-line references were re-checked against the repository on
+  2026-09-23**, against `encore-kiosk.sh`, `encore-kiosk.service`,
+  `encore-kiosk.target`, `encore-kiosk.remmina.template`, `encore-install.sh`,
+  `encore-uninstall.sh`, `encore-push.sh` and `.gitignore`. The previous check
+  on 2026-09-13 pointed at four files that have since been renamed and
+  rewritten, so the lines had moved even where the claims held.
+- **Citations that pointed at a personal file have been moved.**
+  `group_rdp_server_server.remmina` at the repository root is an untracked
+  personal connection profile; it will never exist on an adopter's machine, and
+  `constraints.md` C-5, `interfaces.md` I-6, ADR-0004 and three `debt.md` items
+  were all measuring shipped behaviour against it. They now cite
+  `encore-kiosk.remmina.template`, which is what we ship.
+- **The claim about a stale reference outside this record was itself stale.**
+  This section said `BACKLOG.md`'s R-13 row "still says there is no readme". It
+  does not, and has not for some time — `BACKLOG.md` item 15 now says `README.md`
+  exists but does not satisfy R-13 because it is a lab procedure aimed at the
+  author (ADR-0006). Corrected 2026-09-23.
 
 ## Open contradictions
 
-Three. None is resolved here, because in each case both sides still hold.
+Three were listed here. **One is closed, one is narrower than it was, and one
+survives in a reduced form.** Reviewed 2026-09-23.
 
-**1. The virtual consoles serve R-6 and R-10 in opposite directions.**
-*(both sides recorded 2026-09-13)*
-Leaving consoles 1–6 as text logins is how the administrator reaches a machine
-whose screen is gone (R-10); it is also how the person at the terminal leaves
-the remote session (R-6). Recorded in `constraints.md` and as question Q-1 in
-`NOTES.md`. Note the correction of the same date: disabling VT switching is
-**not** "the cost D-006 already accepted" — D-006 accepted the lock-out risk
-while a console still existed as a way in, so closing it accepts a strictly
-larger cost. Needs the author, not the architect.
+**1. The virtual consoles — still open, but half of it dissolved.**
+*(both sides recorded 2026-09-13; narrowed 2026-09-21 and 2026-09-23)*
+As written, this pitted R-6 (nothing but the remote session) against R-10 (the
+administrator can reach the machine). **R-10 is no longer a side.** It was
+reworded on 2026-09-21 to promise that an administrator can reach an active
+terminal *from another machine*, and it never promised a person standing at the
+terminal a text login prompt. What remains is R-6 against **D-017's own
+reason**: a terminal whose network has died would otherwise be unreachable for
+good. Both still hold, so the author must pick.
 
-**2. What replaces the no-profile fallback.**
-*(both sides recorded 2026-09-13)*
-- `debt.md` item D-A1 says the repayment is to "show a static 'not configured'
-  screen, or let the unit fail loudly".
-- ADR-0002 says that showing anything of our own beside the session is **no
-  longer possible without adding a component**, because that is exactly what
-  `cage` was chosen to prevent — and `docs/product/users.md` names "a black
-  screen" as a reason the person at the terminal gives up, so the blank
-  console that a bare deletion leaves behind is a real cost too.
+Two corrections of fact that went with it. The keys are `Ctrl+Alt+F1` through
+`F6` and **which one gives a login prompt varies by machine**; three documents
+each named a single different key and all three were wrong. And the mechanism
+is one character: `cage -s` (`encore-kiosk.service:17`) is what permits console
+switching at all, so this is a cheap conflict, not an expensive one.
 
-Blank is safer than a file chooser and should ship first; that much is agreed.
-What it becomes afterwards is not decided, and it collides with ADR-0002 head
-on.
+**2. What replaces the no-profile fallback — the cost argument was wrong.**
+*(both sides recorded 2026-09-13; corrected 2026-09-21, folded here 2026-09-23)*
+This said `debt.md` item D-A1's repayment ("show a static 'not configured'
+screen") collides head-on with ADR-0002, because showing anything beside the
+session needs a component `cage` exists to prevent. **The premise was wrong,
+and it was the architect's own.** It assumed the message had to be drawn inside
+the session. It does not — the runner can write to the console before the
+compositor starts, which is roughly twenty lines of shell, no new package and
+no new window. ADR-0002 forbids drawing *alongside a running session* and says
+nothing about the screen when there is no session, which is exactly this case.
+So the collision is not real and this is no longer a contradiction. What is
+left is a product question — whether the terminal explains itself while it is
+waiting, and with a countdown or not — and it is open with the author in
+`docs/product/NOTES.md`, not here.
 
-**3. Whether removing the shell loop produces a failure signal at all.**
-*(both sides recorded 2026-09-13)*
-- `debt.md` item D-A2's recommendation is to delete the `while true` loop and
-  let systemd supervise, so that repeated failures surface as a failed unit.
-- The same day's finding, citing
-  [Remmina issue 3113](https://gitlab.com/Remmina/Remmina/-/issues/3113), is
-  that Remmina does not exit on a dropped connection by default — in which
-  case the process never exits, the restart layer never fires, and deleting
-  the loop changes nothing about the silence.
+**3. Whether removing the shell loop produces a failure signal — survives,
+reduced, and now with evidence.**
+*(recorded 2026-09-13; narrowed by ADR-0007 on 2026-09-14; observed 2026-09-23)*
+The surviving half: supervision of the connection is only as real as the
+client's willingness to exit. Upstream says it does not exit on a dropped
+connection by default, and Test 2 has still never been run.
 
-Both are code-and-upstream reads, neither is observed. The exit behaviour must
-be established on real hardware before D-A2 can be called fixed. Related but
-distinct: whether anyone is *owed* a signal is an open product question (Q-5 in
-`NOTES.md`).
+**What 2026-09-23 added is worse than the contradiction.** A failed connection
+produced a clickable certificate dialog on the terminal's screen while the
+journal recorded only "started" and "session opened". ADR-0007 consequence 4
+had named the journal as the channel that carries this signal when the unit
+state cannot. On that occasion it did not. The cause was never identified — a
+later clean reinstall connected successfully, most likely a difference in stale
+files from an earlier session — and it is recorded as **unexplained**, because
+the symptom is precisely the one `debt.md` item D-A2 exists to name.
 
 ## Related records, not part of this one
 
@@ -140,7 +180,41 @@ distinct: whether anyone is *owed* a signal is an open product question (Q-5 in
 - `docs/product/glossary.md` — shared. Code-side names may be added there.
 - `README.md` — the install-and-test procedure for the prototype. Ours, and
   governed by ADR-0006.
-- `BACKLOG.md` — delivery order. Tracks *unbuilt* work; `debt.md` tracks
-  *built* things that are wrong. Items D-A1 and D-A2 appear there under "Built
-  and wrong" as one piece of work.
+- `docs/tests.md` — what has been run on a converted machine and what has not.
+  It is the authority on which claims here are observations.
+- `docs/troubleshooting.md` — every failure seen so far, with the check that
+  identifies it. Several facts in this record are sourced to it.
+- `BACKLOG.md` — delivery order. Tracks *unbuilt* work and decides what is done
+  next; `debt.md` tracks *built* things that are wrong and decides nothing.
 - `docs/product-ignore/` — excluded by the author. Not read.
+
+## Where things live
+
+Resolved by the architect agent on 2026-09-23. Correct anything wrong here —
+the agents read this before they read anything else. **This is the architecture
+record's copy**; it is here because there is no `CLAUDE.md` and no top-level
+`docs/` index, and the root `README.md` is not the architect's to edit. If a
+`CLAUDE.md` is ever created, this table belongs there instead.
+
+| What it holds | Where it is |
+|---|---|
+| the problem, in prose | `docs/product/problem.md` |
+| the solution and its numbered requirements | `docs/product/solution.md` |
+| user profiles | `docs/product/users.md` |
+| closed product decisions and their reasons | `docs/product/decisions.md` |
+| why not an existing project | `docs/product/alternatives.md` |
+| shared vocabulary, product and code | `docs/product/glossary.md` |
+| the product working log, and handoffs to the architect | `docs/product/NOTES.md` |
+| delivery order / the backlog | `BACKLOG.md` (repository root) |
+| architecture: overview, boundaries, interfaces, data, constraints, stack | `docs/architecture/` |
+| known compromises already taken | `docs/architecture/debt.md` |
+| architecture decision records | `docs/architecture/adr/ADR-NNNN-<slug>.md` |
+| the architecture working log | `docs/architecture/NOTES.md` |
+| findings waiting for product | `docs/architecture/NOTES.md`, entries of kind `for-product` |
+| findings waiting for architecture | `docs/product/NOTES.md`, under "Handoffs" |
+| the design for a feature, before it is built | (none yet — no `docs/design/`) |
+| what has been run on a machine, and what has not | `docs/tests.md` |
+| every failure seen, with its check | `docs/troubleshooting.md` |
+| how to install and remove | `README.md`, and the scripts at the repository root |
+| the shipped artifacts | repository root: `encore-kiosk.{target,service,sh}`, `encore-kiosk.remmina.template`, `encore-{push,install,uninstall}.sh` |
+| **not** shipped, and secret-bearing | repository root: `*.remmina`, `remmina.pref` — untracked, see `.gitignore` |

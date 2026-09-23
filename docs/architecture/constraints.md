@@ -6,6 +6,11 @@ because the user is a child and the failure mode is an unmanaged computer in a
 bedroom. Absolutes are harder than percentages, and they are what the design
 must be judged against.
 
+**Names and citations corrected 2026-09-23.** This file was half-converted to
+the names D-022 and D-023 fixed: C-4 was still on the old ones while C-6 was on
+the new. Every `file:line` here has now been re-checked against the file, not
+merely renamed.
+
 ---
 
 ## C-1 — Environment (from D-003, R-1, R-2)
@@ -14,7 +19,7 @@ must be judged against.
 |---|---|
 | Package manager | apt family only |
 | Display server | Wayland only |
-| Init | systemd only |
+| Init | systemd only, **and ≥ 254** — `RestartSteps=` / `RestartMaxDelaySec=` arrived there and ADR-0007 depends on them. Older systemd ignores them silently and gives flat retries. |
 | Hardware | none assumed — 32-bit and ARM must be considered in scope |
 | Host distribution | out of scope; the author's own host is a distribution we do not support |
 
@@ -22,6 +27,21 @@ must be judged against.
 only" is a real tension on old machines. A 2009 iMac or an old PC with an
 ancient GPU may have no working Wayland path at all. `BACKLOG.md` already asks
 whether those two machines qualify. Until someone runs it, R-2 is a claim.
+
+**The architecture that would have enforced the version floor does not exist,
+2026-09-23.** Under D-027 there is no package, so no dependency resolver ever
+sees `systemd (>= 254)`. `encore-install.sh` is the only thing that could check
+it and it does not (`encore-install.sh:79-83` installs packages and checks no
+version of anything). A machine on systemd 252 gets a terminal that works and
+retries flat rather than backing off, with nothing anywhere saying why. D-027
+records this cost in the product's own words; it is repeated here because it is
+the mechanism half.
+
+**Only one hardware combination has ever been observed**, on 2026-09-23: x86_64
+on a clean Ubuntu 26.04 VM, with Remmina 1.4.43, cage 0.2.1 and FreeRDP 3.31.
+The 32-bit and ARM halves of the row above are in scope on paper and untested
+in fact. `encore-install.sh:37-43` does name all three architecture triplets,
+so the intent is built in even though it is unproven.
 
 ---
 
@@ -35,6 +55,13 @@ the remote client's own user interface.
 This is one hundred percent, not "almost always". The current design has at
 least two ways to fall short of it — see `debt.md`, items D-A1 and D-A4.
 
+**It has now been watched falling short of it, three times.** On 2026-09-14 a
+terminal with no profile showed the client's own connection editor and file
+chooser, and the client's main window sat above the session with no way to
+raise or dismiss it safely. On 2026-09-23 a failed connection put a clickable
+certificate dialog on the terminal's screen. C-2 is an absolute the product
+does not currently hold, and that is observed rather than argued.
+
 ---
 
 ## C-3 — Reversibility absolute (D-007, R-11)
@@ -43,6 +70,20 @@ least two ways to fall short of it — see `debt.md`, items D-A1 and D-A4.
 system file in place, rather than adding a file beside it, breaks this. The
 current design is well-behaved here: it adds units, adds a user, adds a script,
 and flips one symlink.
+
+**Under D-027 this is now a promise kept by our own code, 2026-09-23.** With no
+package there is no package manager holding the file list, so
+`encore-uninstall.sh` is the only thing that knows what to take off. It removes
+the units, the script, the user and the home directory, restores the default
+target from the record written at install time (`encore-uninstall.sh:81-97`,
+I-7 in `interfaces.md`), and then *re-checks* that each of those is gone and
+says so (`:127-137`). Packages installed at setup are deliberately left behind
+and said out loud (`:122-125`), which is the right call — removing them is the
+one step that could break something unrelated.
+
+**Still a claim, not an observation.** Test 4 in `docs/tests.md` has never been
+run. C-3 is the absolute with the largest gap between how carefully it is
+implemented and how little it has been checked.
 
 ---
 
@@ -56,12 +97,38 @@ The running capability may reach:
 and nothing else. In particular: no root, no other hosts on the LAN, no other
 users' data, no package management, no storage beyond its own home.
 
-**Measured against the code:** `NoNewPrivileges=true`, `ProtectSystem=yes`,
-`ProtectHome=true` and `User=kiosk` are present
-(`remmina-kiosk.service:7,26-28`). They cover the privilege half. **The network
-half is entirely unbuilt** — there is no `IPAddressDeny=`, so the process can
-reach every host the machine can reach. `ProtectSystem=yes` is also the weakest
-of the three settings; it leaves `/etc` writable.
+**Measured against the code, re-measured 2026-09-23 — and the previous
+measurement was wrong.**
+
+What is present (`encore-kiosk.service:7-8`, `:34`, `:36`): `User=encore`,
+`Group=encore`, `ProtectSystem=yes`, `NoNewPrivileges=true`. Plus
+`InaccessiblePaths=` on Remmina's keyring plugin (`:13-15`), which is a
+confinement of a different kind — it exists so the client cannot demand a
+keyring no unattended terminal can unlock.
+
+**`ProtectHome=true` is NOT present.** This section previously said it was,
+citing the old file name and the old line numbers. It is commented out at
+`encore-kiosk.service:35`. `docs/troubleshooting.md` gives the reason: it hides
+`/run/user` along with `/home` and `/root`, and `/run/user` is where the
+Wayland socket lives, so the capability cannot start with it on. It was turned
+off to reach a working session on 2026-09-14 — a blocker being cleared, not a
+decision that the extra reach is acceptable.
+
+**So the confinement this constraint describes is currently absent**, and the
+capability can read other users' home directories. The record said otherwise
+for nine days. See `debt.md` item D-A4, which is now the inverse of what it was
+written as.
+
+**The network half is entirely unbuilt** — there is no `IPAddressDeny=`, so
+the process can reach every host the machine can reach. `ProtectSystem=yes` is
+also the weakest of the three levels; it leaves `/etc` writable.
+
+**And the reach is wider than this constraint says in one more way:** the
+identity is added to the `video`, `input` and `render` groups
+(`encore-install.sh:94`). That is how the compositor gets the GPU and the input
+devices, so it is doing real work, but "the screen, the keyboard, the mouse"
+above is a description of intent and `video,input,render` is the mechanism
+nobody wrote down until now.
 
 ---
 
@@ -71,9 +138,26 @@ Sound out through the terminal's speakers and, where a microphone exists, in
 through the terminal's microphone — **as the default, with nobody choosing a
 device from a list**, and a terminal with no microphone must still work fully.
 
-**Measured against the code:** the shipped profile sets `sound=off` and leaves
-`microphone=` empty (`group_rdp_server_server.remmina:104,92`). Audio is not
+**Measured against the code:** the shipped template sets `sound=off` and leaves
+`microphone=` empty (`encore-kiosk.remmina.template:22,102`). Audio is not
 merely unbuilt; the current configuration switches it off.
+
+**Citation corrected 2026-09-23. The conclusion is unchanged; the evidence was
+never ours.** This used to be measured against
+`group_rdp_server_server.remmina` at the repository root, which is an untracked
+personal connection profile and will never exist on an adopter's machine.
+Measuring a shipped constraint against a file we do not ship is how a record
+describes a product that does not exist. The template is the shipped artifact
+and it says the same thing.
+
+**And the template says it for a reason that is now explicit.** It is generated
+verbatim from the profile observed working on 2026-09-14, with only host,
+account, password and label blanked (`encore-kiosk.remmina.template:1-10`). So
+`sound=off` is not a decision anybody took — it is a property of the machine
+the working profile was built on, carried along. The product record says the
+same in its own words on 2026-09-23: policy and baseline had been bundled, and
+separating them makes D-009, D-014 and D-019 visibly undelivered rather than
+invisibly claimed.
 
 ---
 
@@ -101,10 +185,33 @@ platforms that were rejected start being cheaper than the assembly.
 ## C-6 — No clock, but one real timing number
 
 `RestartSec=3` and `sleep 2` are the only numbers in the system
-(`remmina-kiosk.service:14`, `remmina-kiosk.sh:15`). Neither has a stated
+(`encore-kiosk.service:20`, `encore-kiosk.sh:15` — both re-verified
+2026-09-23). Neither has a stated
 reason and neither has been tuned against anything. There is **no stated
 requirement for how quickly a terminal must return to a login screen** after a
 drop. If one matters, it belongs in the product record, not here.
+
+**2026-09-14: the absence of that number now costs something.** ADR-0007 has to
+choose a backoff cap, and under it that delay is a black screen in front of the
+person at the terminal rather than an invisible pause, because the compositor
+restarts with the client. Thirty seconds was chosen — small on purpose, because
+systemd's backoff never decays on its own, so the cap becomes the steady-state
+wait on a long-lived terminal. It is a defensible guess, not a measurement, and
+it is put to the author as Q-7 in `NOTES.md`.
+
+**A third number now exists, and it is not ours: 90 seconds.** That is how long
+stopping the unit took on 2026-09-14 while the compositor held a console it had
+not been granted. `TimeoutStopSec=10s` and `KillMode=mixed`
+(`encore-kiosk.service:21-22`) are the answer to it, and that pair is the one
+timing number in the system that was chosen against an observation rather than
+guessed.
+
+**And the premise under ADR-0007's cap is no longer missing.** D-026
+(2026-09-21) states the machine being connected to is available about 99% of
+the time, not always, so an outage is an ordinary event a terminal waits
+through quietly. That closes the architect's Q-6, which had found the premise
+leaned on everywhere and stated nowhere. It does not supply the number Q-7
+asks for — how long a *person* may be shown nothing — which is still open.
 
 ---
 
@@ -115,15 +222,36 @@ the machine without the screen) are served by the same mechanism, in opposite
 directions.**
 
 The design leaves consoles 1–6 as text logins so the administrator can get in.
-The person at the terminal can press `Ctrl+Alt+F2` and land on one of them. A
-child without credentials cannot log in, so nothing is *granted* — but the
-screen has stopped being the remote session, which is what C-2 says must never
-happen, and a blank console with a cursor is exactly the kind of thing a child
-calls an adult about.
+The person at the terminal can press `Ctrl+Alt+F1` through `Ctrl+Alt+F6` and
+land on one of them — **which of those keys gives a login prompt varies by
+machine**, and the kiosk holds tty7. A child without credentials cannot log in,
+so nothing is *granted* — but the screen has stopped being the remote session,
+which is what C-2 says must never happen, and a blank console with a cursor is
+exactly the kind of thing a child calls an adult about.
+
+**Corrected 2026-09-23, from the author.** This paragraph said `Ctrl+Alt+F2`,
+`interfaces.md` said `Ctrl+Alt+F1`, and `NOTES.md` Q-1 said `F2`. Three
+documents, three answers, and all three were wrong in the same way: they named
+one key for something that is a range and is machine-dependent.
+`encore-install.sh:55` already says `Ctrl+Alt+F1..F6` and is the artifact a
+stranger actually reads.
 
 Both reasons still hold. This is a genuine **Conflict**, not drift, and the
 architect does not get to pick. It is put to the author in `NOTES.md` as
 question Q-1, and to the author by the product manager as Q-P1.
+
+**Half of it dissolved on 2026-09-21 and this file did not know.** R-10 was
+reworded: it promises an administrator can reach an active terminal *from
+another machine*, and never promised a person standing at the terminal a text
+login prompt on it. So R-10 is no longer one of the two sides. What is left is
+D-017's own reason — a terminal whose network has died would otherwise be
+unreachable for good — against R-6. Both still hold, so it stays a conflict,
+but it is a smaller and cheaper one than this file described.
+
+**And the mechanism is one character.** `cage -s`
+(`encore-kiosk.service:17`) is what permits console switching; without `-s`
+there is no route out of the session from the keyboard. The record treated this
+as expensive; it is not.
 
 The trade-off: disabling VT switching hardens R-6 and makes R-10 depend
 entirely on the network being up, which risks locking a household out of its

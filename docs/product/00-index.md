@@ -10,12 +10,12 @@ and no `positioning.md`.
 
 | Doc | What's in it |
 |---|---|
-| `NOTES.md` | Append-only working log. Holds only what is not settled: one open question for the author, `Q-P2`, and one handoff for the architect. |
+| `NOTES.md` | Append-only working log, in date order. Where a fact lands before it reaches a formal document, and where the open questions and handoffs live. |
 | `users.md` | The four roles that touch the product, including the stranger deciding whether to try it. |
 | `problem.md` | A short essay: old machines going unused, the afternoon of hand-assembly, and why a half-converted machine is worse than none. |
-| `solution.md` | Prose describing the envisioned product, then requirements `R-1`..`R-17`, each marked `real` or `intended`. Also what the solution is not. |
+| `solution.md` | Prose describing the envisioned product, then requirements `R-1`..`R-18`, each marked `real` or `intended`. Also what the solution is not. |
 | `alternatives.md` | Why the project exists when thin-client platforms already do. Written for the stranger, in categories rather than product names. |
-| `decisions.md` | Dated decision log, `D-001`..`D-025`. Superseded entries stay, marked. Closed decisions only. |
+| `decisions.md` | Dated decision log, `D-001`..`D-027`. Superseded entries stay, marked. Closed decisions only. |
 | `glossary.md` | Terms in users' words. The architect may add the code-side name for each. |
 
 Other documents appear here only when there is something true to put in them.
@@ -39,14 +39,23 @@ Other documents appear here only when there is something true to put in them.
   `NOTES.md` as `Kind: question` until they are answered or ruled out.
 
 ## Health of this record
-- **No requirement has been observed working on an old machine.** The
-  strongest evidence held anywhere is the architect's read of the prototype.
-  Where a `real` requirement carries an evidence line, that line says so.
+- **No requirement has been observed working on an old machine.** On
+  2026-09-14 a terminal was watched reaching a remote session on a virtual
+  machine, which is the first evidence in this record that anyone watched
+  rather than read; on 2026-09-23 that was repeated on a virtual machine
+  converted from nothing by following the written procedure. Everything else
+  rests on a read of the prototype. Where a `real` requirement carries an
+  evidence line, that line says which it is.
 - **R-6 — the person at the terminal sees nothing but the remote session — is
   the product's central promise and is marked `intended`, not `real`.** It was
-  marked `real` until that read found two ways out of the remote session.
-- **Five questions are open and need the author**, not the architect and not
-  the product manager. They are in `NOTES.md` as `Q-P1` to `Q-P5`.
+  marked `real` until that read found two ways out of the remote session, and
+  both have since been watched happening.
+- **Two questions are open and need the author**, not the architect and not the
+  product manager. They are in `NOTES.md`: what the stored credential can
+  honestly promise (`Q-P2`), and what a terminal shows — and for how long —
+  while it waits for a machine it cannot reach. A third, whether the encryption
+  key must travel between machines, was answered by experiment on 2026-09-23:
+  it does not.
 
 ## Not part of this record
 - `docs/product-ignore/` — excluded by the author. Not read, not maintained.
