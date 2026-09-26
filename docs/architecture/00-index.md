@@ -18,15 +18,15 @@ Mechanism — paths, units, config keys, protocols, libraries — lives only her
 
 | Doc | What's in it |
 |---|---|
-| `NOTES.md` | Append-only working log. Open questions Q-1, Q-2, Q-4, Q-5, Q-7 and Q-8, plus four findings from 2026-09-23 of which two are for the product manager. Q-3 and Q-6 are closed and kept as a record. |
+| `NOTES.md` | Append-only working log. Open questions Q-1, Q-2, Q-4, Q-5, Q-7, Q-8 and Q-11, plus findings from 2026-09-23 of which two are for the product manager. Q-3 and Q-6 are closed and kept as a record. **Past the restructure trigger at 538 lines** — not folded on 2026-09-23 because a ticket citing this record was in flight. Two `for-architecture` findings from the probe's implementation were taken on 2026-09-23 and are marked `(taken)` in place. |
 | `overview.md` | The system on one page, with a diagram: the installer, four installed parts, one boundary, and what has actually been watched. |
 | `boundaries.md` | The six parts, what each owns, what it must not know — including the configuration boundary, which now exists — and the one job nothing owns. |
 | `interfaces.md` | Seven contracts, all of them files or paths: which are public, which are fragile, and which changed status when the package went away. |
 | `data.md` | The complete inventory, split by deactivate versus uninstall; the honest account of the one secret; and why the key no longer has to travel. |
-| `constraints.md` | The environment, the absolutes, the fleet size of two or three, and the conflict the design must not hide. |
-| `stack.md` | Every part, all adopted, none pinned — and why nothing will ever pin them now. |
-| `debt.md` | Fourteen items, worst first, with what each is waiting on. Three of the original eleven are repaid or void; three new ones were found on 2026-09-23. |
-| `adr/` | **Seven** decisions: four reconstructed from code, three the author's or the architect's own. |
+| `constraints.md` | The environment, the absolutes, the fleet size of two or three, and the conflict the design must not hide. Two version floors live in C-1, systemd ≥ 254 and CPython ≥ 3.10, and nothing on a machine enforces either. **The Python floor was recorded as 3.14 on 2026-09-23 and corrected to 3.10 the same day** — it had been read off a defect that was fixed concurrently; C-1 keeps the full trail, which is the record's best example of a constraint that was measured correctly and still wrong. |
+| `stack.md` | Every part adopted except the probe, none pinned — and why nothing will ever pin them now. CPython was added on 2026-09-23; the probe's language had been missing from this table entirely. |
+| `debt.md` | Eighteen items, worst first, with what each is waiting on. Three of the original eleven are repaid or void; seven new ones were added on 2026-09-23 (D-A12 to D-A18), two of them not yet built. |
+| `adr/` | **Nine** decisions: four reconstructed from code, five the author's or the architect's own. |
 
 ## Decisions on file
 
@@ -39,9 +39,12 @@ Mechanism — paths, units, config keys, protocols, libraries — lives only her
 | ADR-0005 | Assemble from systemd parts, not a thin-client platform | reversible | accepted (author's own reasoning) |
 | ADR-0006 | The README is a lab procedure, not the reader-facing explanation | reversible | accepted — **architect's call, not yet ratified by the author** |
 | ADR-0007 | systemd owns recovery; the runner is a launcher, not a supervisor | reversible | accepted 2026-09-14; addendum 2026-09-23 — its missing premise is now D-026 |
+| ADR-0008 | We speak the RDP preamble ourselves, to capture and to classify | one-way door | accepted 2026-09-23 — follows D-028, D-029, D-030; the exchange is verified on the wire, nothing is built; two addenda, 2026-09-23: option D (bind to the installed `libfreerdp` from `ctypes`) examined and rejected, and the runner contract completed — **the Connection Confirm bytes in the Decision block were corrected the same day**; a third correction the same day removed the cipher string `DEFAULT@SECLEVEL=0`, which was measured to narrow the envelope it was chosen to widen — the permissive envelope is now recorded as a property, not a literal; a **third addendum**, same day, completes the runner contract against the probe's ten actual statuses — `2 USAGE` and `9 NO_CERTIFICATE` stop, `5 TIMEOUT` and a crash (exit 1) retry, and nothing falls through to the default any more |
+| ADR-0009 | The installer tells the runner where to connect; the profile never does | reversible | accepted 2026-09-23 — unblocks the runner's pre-flight; **decided, not built**; narrows boundary 4 and adds two keys to I-7 |
 
-**Seven, not six.** This heading said "six decisions" while the table below it
-listed seven. Corrected 2026-09-23.
+**Nine, not seven.** ADR-0009 was added on 2026-09-23. The count in this
+heading has been wrong before — check it against the table below, which is the
+authority.
 
 **None is superseded.** ADRs are never renumbered or deleted; a replaced one is
 marked superseded in place. Where a decision has been confirmed, narrowed or
@@ -212,7 +215,7 @@ record's copy**; it is here because there is no `CLAUDE.md` and no top-level
 | the architecture working log | `docs/architecture/NOTES.md` |
 | findings waiting for product | `docs/architecture/NOTES.md`, entries of kind `for-product` |
 | findings waiting for architecture | `docs/product/NOTES.md`, under "Handoffs" |
-| the design for a feature, before it is built | (none yet — no `docs/design/`) |
+| the design for a feature, before it is built | `docs/plans/<slug>.md` — created 2026-09-23 by the senior engineer for the certificate probe; there was nothing holding this role before |
 | what has been run on a machine, and what has not | `docs/tests.md` |
 | every failure seen, with its check | `docs/troubleshooting.md` |
 | how to install and remove | `README.md`, and the scripts at the repository root |

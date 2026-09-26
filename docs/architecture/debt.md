@@ -572,3 +572,133 @@ package and therefore no dependency resolver, so this check either lives in the
 installer or nowhere. That is a cost D-027 names explicitly in its own words.
 This item is that cost, recorded on the engineering side with the line number
 where it would go.
+
+---
+
+## D-A15 — A permanently broken far-end TLS hides behind an ordinary outage
+**Severity: medium, and it is a compromise chosen on purpose. Added
+2026-09-23. Not built — it arrives with the runner's pre-flight.**
+
+**What:** ADR-0008's addendum puts "the negotiation succeeded and the TLS
+handshake did not" on the retry side of D-020. A target whose TLS is broken in
+a way that never recovers — a certificate the probe cannot parse, a far end
+that only offers something OpenSSL will not touch even at `SECLEVEL=0` — will
+therefore be retried for ever, which is the harm D-028 exists to prevent.
+
+**Why it was taken:** the other branch is worse. The same status is what our
+own probe produces if its acceptance envelope turns out to be stricter than the
+client's, and stopping a healthy terminal for ever is the direction D-020 names
+as the expensive one. Only one far end has ever been spoken to (Q-11), so there
+is no evidence with which to prefer the strict reading.
+
+**What would repay it:** having probed an `xrdp` and a `gnome-remote-desktop`
+target, so that a failed handshake can be told from our own strictness. If it
+turns out our envelope never causes it, this status moves to the stop side and
+this item closes. Until then, the journal line on every attempt is the only
+thing carrying the reason, which makes it worth more than usual.
+
+---
+
+## D-A16 — The target's address will exist in two places
+**Severity: low, and it is the price of ADR-0009. Added 2026-09-23. Not built.**
+
+**What:** ADR-0009 has the installer record `RDP_HOST=` and `RDP_PORT=` in the
+install record (I-7) so the runner's pre-flight knows where to connect without
+reading the profile. The same address is already inside `server=` in the
+profile. Two copies, written from one input.
+
+**Why it was taken:** the alternative was the runner parsing a file format we
+do not own, in a component with nobody watching, and splitting `host:port` on a
+character that is ambiguous for an IPv6 literal — see ADR-0009, option A.
+
+**What it costs:** an administrator who hand-edits the profile afterwards gets a
+terminal that probes one address and connects to another, and nothing detects
+it. The probe would pass against the old host while the client fails against
+the new one, which reads as a healthy pre-flight and a broken session.
+
+**What would repay it:** either a check that the two agree — which needs the
+runner to read the profile and so undoes ADR-0009 — or the profile ceasing to
+be the primary record of the address. Neither is worth doing before a second
+key is ever wanted; ADR-0009's *Revisit when* is the trigger.
+
+---
+
+## D-A17 — The probe's TLS context builder mutates process-global state
+**Severity: low today, and it becomes real the moment the probe is imported
+rather than run. Added 2026-09-23. Built.**
+
+**What:** `permissive_tls_context()` in `encore-probe.py` uses
+`warnings.catch_warnings` to suppress the deprecation warning raised by
+lowering the TLS floor to 1.0. That context manager swaps the interpreter's
+global warnings filter and restores it afterwards; it is not thread-safe, and
+two threads inside it at once leave the filter in whichever state the loser
+restored.
+
+**Why it was taken:** as a standalone script run once, with one thread and no
+other Python in the process, it is invisible and the alternative — carrying the
+warning through to the operator's terminal on every probe — is worse for a
+person watching the setup step.
+
+**What it costs:** the probe is not a script only. ADR-0008 has the runner's
+pre-flight call it, and the installer ticket calls it from Python. Any host
+process that is threaded, or that relies on its own warnings filter, inherits a
+window where the filter is not what it set. The symptom is a warning that
+appears or disappears somewhere unrelated, which is close to undiagnosable.
+
+**What would repay it:** the entry point that the installer and the runner call
+declares the seam — either the caller owns warning suppression and the builder
+does not touch the global filter, or the builder is documented as
+single-threaded-only and the installer ticket honours that. Either is a
+sentence of design, not a rewrite; the cost is only that it must be decided
+before the second caller exists rather than after.
+
+---
+
+## D-A18 — The Python floor is undeclared on the machine and unchecked
+**Severity: very low, and it fails loudly. Added 2026-09-23 and reduced the
+same day. Built.**
+
+**Reduced 2026-09-23, hours after it was written.** This item was raised
+against a floor of **3.14** and it said the failure below that floor was
+silent: the IDNA error for a structurally invalid name was a bare
+`UnicodeError` with no `.reason`, the probe's handler read `.reason`, and the
+resulting `AttributeError` escaped as a traceback and exited **1** — the status
+held unassigned so a crash cannot be read as a classification. ADR-0008 stops
+for ever on `2 USAGE`, so on an older Python the same malformed `RDP_HOST=`
+would have retried for ever. **That defect was fixed concurrently** — the
+handler now interpolates the exception itself — so the floor is **3.10** and
+the whole silent-inversion argument above is void. The item survives only in
+its weaker form below.
+
+**What:** `constraints.md` C-1 declares CPython ≥ 3.10.
+`encore-probe.py` carries a bare `#!/usr/bin/python3`, names no version
+anywhere, and `encore-install.sh:79-83` checks the version of nothing.
+
+**Why it matters, now:** barely. Below 3.10 `encore-probe.py` does not import —
+`bytes | None` in a signature at `:255` is a runtime-evaluated PEP 604 union —
+so an adopter on an older interpreter gets a `SyntaxError` at the first run,
+which is a visible failure, not a misclassified one. The second-order effect,
+`socket.timeout` not being a `TimeoutError` below 3.10 and collapsing `5
+TIMEOUT` into `4 UNREACHABLE`, is unreachable for the same reason. 3.10 is four
+years old and every apt-family release in scope ships something newer.
+
+**Why it was taken:** this is the same shape as D-024's accepted cost. The
+product tracks current releases and carries no compatibility handling, and
+Ubuntu 26.04 — the only distribution a terminal has ever been built on — ships
+3.14, so the floor costs nothing today. What D-024 accepts is *excluding* older
+releases; it does not accept the exclusion being undetectable, which is the
+part recorded here. Under D-027 there is no package and no resolver, so a check
+lives in the installer or nowhere — identical to D-A14.
+
+**What would repay it:** anything that makes the floor visible on the machine
+rather than only in this record — a version guard, or an interpreter named in
+the shebang. **Whether the installer should check it is a backlog question and
+is deliberately not settled here**; it is named so it is not lost. On the
+technical facts the case for checking Python is now thin, and D-A14's case for
+checking systemd ≥ 254 is not — that one still bites silently.
+
+**One of the two things that would have shrunk this item has happened.** It
+said the probe not depending on `.reason` would drop the floor to the syntactic
+3.10. It did, on the day the item was written. The other — measuring 3.12 and
+3.13 — is now moot, because the boundary it would have pinned down no longer
+exists.

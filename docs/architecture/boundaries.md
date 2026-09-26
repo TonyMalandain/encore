@@ -78,6 +78,14 @@ remote login screen after any exit.
 profile by glob (`encore-kiosk.sh:6`) and never reads its contents. That is
 the right boundary and it is currently respected.
 
+**This boundary has been narrowed by decision, and is not yet built**
+(ADR-0009, 2026-09-23). ADR-0008's pre-flight has to know where to connect, so
+the runner will be allowed to know **where** — a host and a port, read as two
+keys from the install record (I-7), which the installer writes. It will still
+not know **who**: no username, no password, and it must never open the profile.
+The part of the rule that was load-bearing is the credential, not the address.
+Until the runner ticket is built, the line above describes the code as it is.
+
 **Breach to watch:** the script and the unit both promise recovery
 (`encore-kiosk.sh:8` `while true` versus `encore-kiosk.service:19`
 `Restart=always`). Two owners of one job means neither is accountable. ADR-0007

@@ -23,6 +23,7 @@ strongest argument in this file and it was quietly becoming false.
 | `kbd` (`chvt`) | no | — | bringing the capability's console to the foreground | — |
 | POSIX `sh` | n/a | — | the runner (16 lines) and the install/uninstall scripts (~170 and ~140) | — |
 | PAM (`PAMName=login`) | n/a | — | acquiring a logind seat so libseat can take the console | — |
+| CPython | no, **but ≥ 3.10 is required** (corrected 2026-09-23 down from 3.14) | 3.14.7, and the suite also runs on 3.11.16 and 3.10.21 (and OpenSSL 3.5.7 beneath it) | the certificate probe (~500 lines), standard library only — no third-party module, ever | ADR-0008 |
 
 The "version seen working" column is one observation: a clean Ubuntu 26.04
 x86_64 VM on 2026-09-23. It is not a support matrix and nothing else has ever
@@ -43,6 +44,15 @@ or nobody's:
 - **The systemd ≥ 254 floor that ADR-0007 depends on is unenforced.** Older
   systemd ignores `RestartSteps=` and `RestartMaxDelaySec=` silently and gives
   flat retries. See `constraints.md` C-1.
+- **The CPython ≥ 3.10 floor the probe depends on is unenforced.**
+  `encore-probe.py` carries a bare `#!/usr/bin/python3` and asks for no
+  version. **Corrected 2026-09-23, the same day it was added.** This said
+  ≥ 3.14, and that below it the structurally-invalid-address path crashed
+  instead of classifying — true when written, and no longer: the probe no
+  longer reads `UnicodeError.reason`, so that path works on every version. What
+  is left is syntactic — below 3.10 the module does not import — which fails
+  loudly rather than silently. `constraints.md` C-1 carries the full trail;
+  the accepted cost is `debt.md` D-A18.
 - **A Remmina behaviour change upstream silently changes what a child sees.**
   D-024 says the product tracks current releases and carries no compatibility
   handling, which makes this an accepted cost rather than an oversight — but

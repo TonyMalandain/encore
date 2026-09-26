@@ -26,7 +26,8 @@ encore-kiosk.service
 encore-kiosk.target
 encore-kiosk.remmina.template
 encore-install.sh
-encore-uninstall.sh"
+encore-uninstall.sh
+encore-probe.py"
 
 for f in $FILES; do
     if [ ! -f "$f" ]; then

@@ -194,6 +194,17 @@ never be able to edit the note that decides what the machine turns back into.
 **Callers:** the uninstaller, and nothing else. A human reading it years later
 is the second caller and the reason it carries comments.
 
+**A second caller and two more keys are decided but not built** (ADR-0009,
+2026-09-23). The runner's pre-flight needs the target's address, and this file
+is where it will get it: `RDP_HOST=` and `RDP_PORT=`, written by the installer,
+the port always explicit so no reader supplies a default. This is the "keys may
+be added" case the stability note below already permits; the two original keys
+are untouched. Two consequences for whoever builds it: the runner becomes a
+reader of a file it does not write, so the mode-644 root-owned arrangement
+below is now protecting two things rather than one; and machines converted
+before this exists will not have the keys, so **absence must stay a tolerated
+state**, exactly as the failure behaviour below already requires.
+
 **Stability:** **stable, and it is a one-way door in miniature.** It is written
 on every machine ever converted and read by an uninstaller that may be a much
 later version. Keys may be added; the two above may never be renamed or

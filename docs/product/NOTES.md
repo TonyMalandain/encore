@@ -345,3 +345,103 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** A promise checked once at setup and never again is a weaker promise than the wording suggests, and this one decides where a household's credential gets sent. It is the same shape as the reversibility gap found earlier today: the product was relying on nothing else ever changing, rather than on anything it does itself.
 - **Source:** found by the architect, 2026-09-23, recorded as D-A13
 - **Touches:** solution.md R-16 and R-5, BACKLOG.md item 3
+
+## 2026-09-23 — Pinning the target's identity is possible, and it shrinks what R-14 must promise
+- **Kind:** solution
+- **Profiles:** terminal administrator, owner of the machine being connected to, person at the terminal
+- **Fact:** The architect established that a terminal can be made to accept exactly one certificate and refuse everything else, with nobody asked and nothing drawn on the screen. R-16's promise — the machine it was configured to connect to, not something answering to its name — is therefore deliverable rather than aspirational.
+- **Why:** It changes what R-14 can honestly say. Today the stored credential's weakness is reachable from anywhere on the household network: anything that answers to the configured name is handed the credential. With the target's identity pinned, the remaining exposure is somebody physically holding the terminal. That is a much smaller sentence than R-14 currently implies, and it is the half of the credential problem that can actually be delivered.
+- **Source:** the architect, investigating at the author's request, 2026-09-23
+- **Touches:** solution.md R-14 and R-16, decisions.md D-011 and D-012, BACKLOG.md item 7
+
+## 2026-09-23 — Pinning puts a file outside the product's own footprint, and R-11 has to cover it
+- **Kind:** solution
+- **Profiles:** terminal administrator, prospective adopter
+- **Fact:** The identity pin lives in a machine-wide location, not in the product's own home directory, and it changes the behaviour of every remote desktop client on that machine rather than only ours. Removing the capability has to remove it too.
+- **Why:** R-11 promises the old machine back with no repair by hand. A file left behind that silently changes how unrelated software on that machine trusts connections is exactly the kind of residue that breaks the promise while looking like nothing. This is the third thing the installer now establishes once and the uninstaller has to know about, after the previous startup mode and the connection profile.
+- **Source:** the architect, 2026-09-23
+- **Touches:** solution.md R-11, decisions.md D-007, docs/tests.md Test 4
+
+## 2026-09-23 — OPEN QUESTION: does the install make the administrator check the fingerprint by hand?
+- **Kind:** question
+- **Profiles:** terminal administrator, prospective adopter
+- **Fact:** Capturing whatever answers at install time protects against every later impostor, and against nothing that is already in position during the install. Turning that into genuine identity needs the administrator to read the fingerprint off the target machine itself and compare it — an out-of-band step the product cannot do for them. Whether the install demands that comparison, offers it, or stays silent is unsettled.
+- **Why:** It is the difference between "this terminal trusts the machine you told it to trust" and "this terminal trusts whatever was there when you set it up". Demanding it costs a manual step against R-4's promise of minutes; skipping it means R-16's guarantee quietly rests on the install moment being clean. With two or three terminals in one household the step is cheap, which is an argument for asking — but it is the author's call and nobody else's.
+- **Source:** raised by the architect, 2026-09-23
+- **Touches:** solution.md R-16 and R-4, decisions.md D-002, BACKLOG.md item 7
+
+## 2026-09-23 — Pinning adds a package to every terminal, permanently
+- **Kind:** solution
+- **Profiles:** terminal administrator, prospective adopter
+- **Fact:** Capturing the target's certificate at setup needs a command-line tool the product does not currently install — about 0.8 MB, one extra name in the install step. It is needed at setup to capture, and again by the runner if the terminal is to tell a refused certificate apart from an unreachable machine. It therefore stays on the terminal for good.
+- **Why:** R-11 promises the old machine back, so the uninstaller has to remove it. More honestly, it widens what converting a machine costs: the record's claim has been that the product adds a capability rather than reshaping the system, and every package added is a little less true. Cheap at this size, and worth noticing rather than absorbing — the alternative was writing our own protocol code, which is worse.
+- **Source:** the architect, 2026-09-23
+- **Touches:** solution.md R-11 and R-4, decisions.md D-007 and D-024, BACKLOG.md item 7
+
+## 2026-09-23 — OPEN QUESTION: what do we owe an adopter whose target offers no certificate?
+- **Kind:** question
+- **Profiles:** prospective adopter, terminal administrator
+- **Fact:** Capturing and pinning the target's identity has only ever been tried against one machine — the author's, which is Windows-like and requires network-level authentication. Two other common ways of serving remote desktop on Linux have never been spoken to, and one of them can be configured to offer no certificate at all. There is nothing to capture and nothing to pin on such a machine.
+- **Why:** R-16 promises the terminal reaches the machine it was configured to connect to and not something answering to its name. On a target with no certificate that promise cannot be kept by any means, so the product must either refuse to set such a terminal up, set it up while saying plainly that the guarantee does not apply, or narrow what qualifies. D-002 forbids us from fixing the target, so this is about what we say, not what we do.
+- **Why it matters now:** the record currently states the qualifying conditions in terms of the terminal only. This is the first requirement that depends on a property of the machine we declared out of scope.
+- **Source:** raised by the architect, 2026-09-23
+- **Touches:** solution.md R-16, R-1 and R-13, decisions.md D-002, BACKLOG.md item 7
+
+## 2026-09-23 — Pinning is L, not M — the pin is the cheap part
+- **Kind:** solution
+- **Profiles:** terminal administrator
+- **Fact:** Capturing the target's certificate is small. Making the captured value actually govern the connection is not: the accept-anything setting has to leave the profile in the same change, a second permissive setting in a file we generate but have never read has to be asserted, a machine-wide file has to be written and later removed, the administrator's confirmation step has to exist, and the runner needs a new way to stop permanently.
+- **Why:** Recorded because the first estimate was wrong in the direction that causes trouble. A pin shipped without the rest is a file that changes nothing while the record claims the terminal is pinned — the same shape as the template that had silently lost a setting and was trusted for nine days.
+- **Source:** the architect, 2026-09-23
+- **Touches:** BACKLOG.md item 7, solution.md R-16
+
+## 2026-09-23 — A permanently broken target now hides behind an ordinary outage
+- **Kind:** solution
+- **Profiles:** person at the terminal, terminal administrator
+- **Fact:** When the target answers and proves it speaks the right protocol but the encrypted handshake then fails, the terminal retries rather than stopping. If that condition is permanent — a broken or misconfigured target — the terminal waits for ever, showing nothing, exactly as it would during an ordinary outage.
+- **Why:** It follows from the rule D-020 sets: stop only when the evidence is about the target and retrying cannot change it. Here the far end has already proved it is the right kind of machine, so the plausible causes are transient or ours, and stopping on our own strictness is the direction D-020 names as worse. The cost is real and was recorded rather than traded silently — it is the same blind spot D-026 already accepts, reached by a different road.
+- **Source:** the architect, applying D-020, 2026-09-23
+- **Touches:** decisions.md D-020 and D-026, solution.md R-18, BACKLOG.md item 13
+
+## 2026-09-23 — The product now depends on a language runtime, and nothing says which version
+- **Kind:** solution
+- **Profiles:** prospective adopter, terminal administrator
+- **Fact:** Capturing the target's identity is done by a script the project owns, written in a language that ships with the supported distributions. Review found a real behavioural difference between versions of that runtime, which the script's error handling depends on. Nothing in the record states a minimum, and nothing on a terminal checks one.
+- **Why:** R-1 lets a reader decide in ten seconds whether their machine qualifies, and the qualifying conditions no longer describe everything the product actually needs. This is the second unstated floor found today — the first was the startup system's — and both are the accepted cost of D-024 arriving in a specific form: an adopter on an older release gets behaviour the record does not describe, with nothing to tell them.
+- **Why it matters for a promise rather than a build:** the failure it produces is the one this design is most careful about. On an older runtime the capture step can fail in a way the terminal cannot classify, and anything unclassified is retried for ever — the harm D-028 exists to prevent.
+- **Source:** found in review, 2026-09-23
+- **Touches:** solution.md R-1 and R-4, decisions.md D-003 and D-024, BACKLOG.md item 4
+
+## 2026-09-23 — OPEN QUESTION: do we exclude an adopter loudly or silently?
+- **Kind:** question
+- **Profiles:** prospective adopter, terminal administrator
+- **Fact:** Two version floors are now known — one in the startup system, one in the language runtime — and neither is checked. An adopter below either gets a terminal that behaves in ways the record does not describe, with nothing to tell them. Both would close with a few lines in the setup step.
+- **Why:** R-1 exists so a reader can rule themselves out in ten seconds, and it currently describes less than the product needs. The choice is between refusing to convert a machine that cannot work — losing an adopter at the door, loudly — and converting it anyway, which loses them later and more confusingly. D-024 already accepted excluding older releases; what was never decided is whether the exclusion should be visible.
+- **Why it matters beyond tidiness:** the failures these floors produce are the silent kind this project keeps being bitten by. Below the runtime floor the capture step fails in a way the terminal cannot classify, and anything unclassified is retried for ever.
+- **Source:** raised by the architect, 2026-09-23
+- **Touches:** solution.md R-1 and R-4, decisions.md D-003 and D-024, BACKLOG.md item 4
+
+## 2026-09-23 — Correction: the runtime floor was recorded from a defect, and the defect is fixed
+- **Kind:** solution
+- **Profiles:** prospective adopter, terminal administrator
+- **Fact:** Two entries earlier today say the product depends on a language runtime version and that two floors are known. The runtime half was wrong by the time it was written down: the behaviour it rested on was a bug in our own script, which was fixed the same afternoon, and the capture step now runs identically on three versions. Whether any floor remains is being established from the code rather than from the old reasoning. The startup system's floor is unaffected and still real.
+- **Why:** Worth recording rather than quietly amending, because it is a good example of a constraint invented by a defect. A floor derived from something we got wrong would have excluded adopters for no reason, and R-1 exists to let a reader rule themselves out accurately — being wrong in the strict direction costs real people.
+- **Source:** the product manager, on re-checking a claim before repeating it to the author, 2026-09-23
+- **Touches:** solution.md R-1, decisions.md D-024, BACKLOG.md item 4, and the two entries above it
+
+## 2026-09-23 — The startup-system floor excludes the Raspberry Pi generation this product was aimed at
+- **Kind:** solution
+- **Profiles:** prospective adopter, terminal administrator
+- **Fact:** The floor the recovery design depends on arrived in July 2023. Debian 12 and every Raspberry Pi OS built on it ship a version below it; only the 2025 generation, built on Debian 13, clears it. A machine below the floor does not fail — it silently retries at a flat interval instead of backing off, which nothing reports.
+- **Why:** D-024 accepted this cost in the abstract — "a distribution whose repositories carry an older release is excluded even though it satisfies D-003, which cuts into exactly the old, long-lived machines this product exists to reuse". This is that sentence arriving with a name on it. The installed base below the floor is not an edge case; it is most of the Raspberry Pis in cupboards, which is the machine the problem statement is written about.
+- **Why it sharpens the open question:** whether to exclude loudly or silently is no longer abstract. Silently means an adopter converts a Pi, watches it appear to work, and inherits recovery behaviour the record does not describe.
+- **Source:** the author asked when the floor was released; established 2026-09-23 from the release announcement and the distributions' own package listings
+- **Touches:** solution.md R-1 and R-2, decisions.md D-003 and D-024, BACKLOG.md items 4 and 14
+
+## 2026-09-23 — The two floors are not one question, and only one of them matters
+- **Kind:** solution
+- **Profiles:** prospective adopter
+- **Fact:** The runtime floor resolved to a four-year-old version that every distribution in scope already exceeds, and a machine below it fails visibly and immediately rather than misbehaving. The startup-system floor is the opposite: recent enough to exclude most Raspberry Pis in use, and it fails silently, with the terminal appearing to work while recovering differently from what the record describes.
+- **Why:** They were logged together earlier today as "two version floors" and that framing is wrong. Only one of them turns adopters away, and it is the one nobody would notice. Any decision about checking versions at setup should be made about that one alone; bundling them would spend effort on the harmless case and dilute the argument about the harmful one.
+- **Source:** established by the architect from the code, 2026-09-23
+- **Touches:** solution.md R-1, decisions.md D-024, BACKLOG.md items 4 and 14

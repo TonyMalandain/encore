@@ -16,12 +16,36 @@ front of anybody.
 
 | Needs | Why |
 |---|---|
-| **apt-family Linux** (Debian, Ubuntu, Raspberry Pi OS…) | The only package family supported |
+| **Raspberry Pi OS "trixie"** (the October 2025 release) **or newer** | Earlier Pi OS releases are missing something the recovery behaviour needs — see below |
+| …or **Ubuntu 24.04 LTS or newer** | 22.04 is too old for the same reason |
+| …or **Debian 13 "trixie" or newer** | Debian 12 is too old for the same reason |
 | **Wayland** | `cage` is a Wayland compositor; there is no X11 path |
-| **systemd** | The on/off switch is a systemd target |
 | **A current release of the packages below** | No compatibility handling for older ones |
 | **SSH running, and you can already log in** | Your way back in once the screen belongs to the remote session — and what `scp` needs, if you take the copy route |
 | **`git`**, or a second machine with `scp` | The install is a clone; if the old machine cannot reach GitHub, the files are copied to it instead |
+
+All three are apt-family; other package managers are not supported.
+
+**What those versions are really about: systemd 254 or newer.** That is the
+actual requirement, and the releases above are simply the ones that carry it.
+If your machine is something else, check directly:
+
+```sh
+systemctl --version | head -1
+```
+
+254 or higher and you qualify, whatever the distribution.
+
+**Below it, nothing appears to be wrong, which is why this is stated so
+plainly.** The terminal installs, connects, and looks fine. But when the
+connection drops it retries at a flat interval instead of backing off
+progressively, because the settings that do that arrived in systemd 254 and
+older versions ignore them without complaining. You would have a terminal that
+recovers differently from everything written here, and nothing would tell you.
+
+This is the one requirement that rules out a lot of otherwise fine hardware.
+Raspberry Pi OS only crossed it in October 2025, so a Pi imaged before then
+needs updating first.
 
 No particular hardware is required — but "has a working Wayland driver" is the
 part that actually decides it, and that has not been tested on anything old.
@@ -277,16 +301,15 @@ Confirming that this really gives the machine back is Test 4.
 
 ## What to test, and what to write down
 
-Seven tests, in `docs/tests.md`, with what has actually been watched and what
-has only been assumed. Run them in order.
+The tests are in `docs/tests.md`, each with what has actually been watched and
+what has only been assumed. Run them in order; the status column there is the
+honest record and this file does not duplicate it.
 
-Two have answers. **Test 1** — a session appears — has been watched twice, most
-recently from a clean machine built by `encore-install.sh`. **Test 6** — must
-the encryption key travel between machines — is answered no: the key is created
-on the terminal, so nothing secret has to be copied between machines and every
-terminal has its own. The other five have never been run, and **Test 4**, which
-asks whether you really get the machine back, is the one `encore-uninstall.sh`
-now makes easy.
+Two have answers so far. A session appearing has been watched twice, most
+recently on a clean machine built by `encore-install.sh`. And the encryption key
+does **not** have to travel between machines — it is created on the terminal, so
+nothing secret is copied and every terminal holds its own. The rest have never
+been run, including the one that asks whether you really get the machine back.
 
 If something fails, `docs/troubleshooting.md` lists every failure seen so far,
 with the check that identifies it and what turned out to be wrong. Nearly all

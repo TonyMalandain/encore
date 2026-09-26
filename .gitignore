@@ -12,5 +12,9 @@ remmina.pref
 *.log
 *.swp
 
+# Python bytecode. Running encore-probe-test.py writes this; nothing in it is
+# ours and it is regenerated on every run.
+__pycache__/
+
 # Superseded product record, kept locally only
 docs/product-ignore/

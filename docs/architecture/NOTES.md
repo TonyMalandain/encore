@@ -138,3 +138,421 @@ rather than renamed. What is below is only what is **not** settled.
 - **Why:** The conversation those two were waiting for has already happened. They are not blocked on anything any more and the reason recorded for deferring them is no longer true, so leaving the deferral in place would be filing them behind an event that has passed. Both need the author — D-A5 is what R-14 can honestly promise, D-A8 is what R-16 means — and neither is the architect's to settle.
 - **Source:** `debt.md` D-A5, D-A7, D-A8; `encore-install.sh`
 - **Touches:** docs/product/solution.md R-14 and R-16; docs/product/NOTES.md Q-P2
+
+---
+
+# 2026-09-23 — certificate pinning: what the parts we ship can actually do
+
+Investigation only. Nothing below is decided and nothing was changed in any
+shipped artifact. Every claim is sourced to FreeRDP 3.31.0 source read from
+upstream, to Remmina 1.4.43 source read from upstream, or to FreeRDP 3.30.0
+installed on the development machine — each entry says which.
+
+## 2026-09-23 — FreeRDP 3 has a system-wide pin that sits below the client
+- **Kind:** stack
+- **Fact:** `/etc/FreeRDP/certificates.json` is read by `tls_verify_certificate` in **libfreerdp core**, not in the client layer. Four keys, checked in this order: `deny` (hard fail), `ignore` (accept anything), `certificate-db` (an array of `{"type":"sha256","hash":"<hex, no colons>"}` — a match accepts, with no prompt), and `deny-userconfig` (hard fail, and the user is never asked). Any non-zero result sets `allowUserconfig = FALSE`, which skips the per-host store and the client's verify callback entirely.
+- **Why:** This is the whole answer to D-A8. It pins a certificate *and* suppresses the dialog, it lives in a file only root can write, and no client that drives libfreerdp can opt out of it. `certificate-db` plus `deny-userconfig: true` is exactly "accept this one certificate, abort on anything else, ask nobody". Note the order: `deny` is evaluated *before* `certificate-db`, so `deny` must not be set.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1642-1745` (`tls_config_check_allowed_hashed`, `tls_config_check_certificate`) and `:1888-1895` (the `allowUserconfig` gate); path construction in `libfreerdp/utils/helpers.c:253-308`; `xfreerdp(1)` "GLOBAL CONFIGURATION (client common)" on FreeRDP 3.30.0 installed locally.
+- **Touches:** debt.md D-A8, interfaces.md (a new contract), stack.md, ADR-0001
+
+## 2026-09-23 — the hash the pin wants is a bare hex SHA-256, case-insensitive
+- **Kind:** data
+- **Fact:** the `hash` string is compared with `_stricmp` against `freerdp_certificate_get_fingerprint_by_hash_ex(cert, type, FALSE)` — separator `FALSE`, so hex with **no colons**. `openssl x509 -noout -fingerprint -sha256` prints it colon-separated and upper-case; both differences are ours to strip, the case is not.
+- **Why:** it is the one detail that silently produces a pin that never matches, and a pin that never matches is a terminal that never connects.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1686-1700`
+- **Touches:** debt.md D-A8
+
+## 2026-09-23 — Remmina's profile format cannot carry a pinned identity, and does not need to
+- **Kind:** interface
+- **Fact:** of the 103 keys in the shipped template, three touch certificates and none pins one. `cert_ignore` sets `FreeRDP_IgnoreCertificate` (`rdp_plugin.c:1951`); `tls-seclevel` sets `FreeRDP_TlsSecLevel`, an OpenSSL cipher-strength level, not a trust decision (`:2106-2110`); `authentication level` sets `FreeRDP_AuthenticationLevel`, where **0 disables the check entirely** (`:1947-1948`, not present in our template). `FreeRDP_CertificateAcceptedFingerprints` — the setting behind `xfreerdp /cert:fingerprint:` — is never set by Remmina.
+- **Why:** this is the exact question ADR-0001's live trigger asks. The literal answer is "no, the profile cannot carry it". The trigger does **not** fire, because the pin does not have to live in the profile: `/etc/FreeRDP/certificates.json` is read with `system=TRUE` and is independent of anything Remmina sets. Remmina is a carrier here, not a blocker.
+- **Source:** Remmina 1.4.43 `plugins/rdp/rdp_plugin.c:1947-1951,2106-2110`; FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1798`
+- **Touches:** ADR-0001, interfaces.md I-3 and I-6, debt.md D-A8
+
+## 2026-09-23 — `cert_ignore=1` short-circuits above the pin, so it must go for pinning to work
+- **Kind:** constraint
+- **Fact:** `FreeRDP_IgnoreCertificate` is tested at `tls.c:1831` and returns success immediately — before the store, before the global configuration file, before any callback. While `cert_ignore=1` is in the profile, no pin anywhere on the machine has any effect.
+- **Why:** D-A8 warns that `cert_ignore=1` is load-bearing and says "pin first, then remove the ignore". The mechanism says the two cannot be sequenced that way: the pin does nothing until the ignore is gone, so they are one change, not two. What makes that safe is that `deny-userconfig` replaces the dialog the ignore was suppressing.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1831-1839`; `encore-kiosk.remmina.template:46`
+- **Touches:** debt.md D-A8, constraints.md C-2
+
+## 2026-09-23 — the per-host trust store is PEM files, not `known_hosts2`, and Remmina moves it
+- **Kind:** data
+- **Fact:** FreeRDP 3 stores an accepted certificate as `<ConfigPath>/server/<hostname>_<port>.pem`, lower-cased, matched by comparing the stored certificate's fingerprint against the presented one for the same host and port. `known_hosts2` is the FreeRDP 2 file and 3.31 neither reads nor writes it. **Remmina overrides `ConfigPath`** to `<remmina user datadir>/RDP` — so on a terminal it is `/var/lib/encore/.local/share/remmina/RDP/server/` — but only if that directory already exists and is writable, otherwise FreeRDP's default `$HOME/.config/freerdp` is used.
+- **Why:** two traps in one fact. The path a pre-seeded PEM must go to depends on a directory existing first, so the location is not deterministic unless the installer creates it. And the store is the mechanism that cannot deliver safe failure: a *match* connects silently, but a *mismatch* calls `VerifyChangedCertificateEx`, which in Remmina is a blocking GTK dialog. The store alone gives pinning and keeps the C-2 breach; combining it with `deny-userconfig` disables the store. They do not compose.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/certificate_store.c:100-206`, `certificate_data.c:86-91,275-296`, `include/freerdp/crypto/certificate_store.h:36-41`; Remmina 1.4.43 `plugins/rdp/rdp_plugin.c:1664-1676,1170-1188,2774-2775`; observed on FreeRDP 3.30.0 locally, where `~/.config/freerdp/server/*.pem` are current and `known_hosts2` was last written under FreeRDP 2.
+- **Touches:** data.md, interfaces.md, debt.md D-A8
+
+## 2026-09-23 — the pin overrides the name check rather than adding to it
+- **Kind:** constraint
+- **Fact:** the global configuration file is consulted only when OpenSSL verification fails *or* the hostname does not match the certificate. A `certificate-db` match then accepts regardless of the name mismatch. Conversely, a certificate that validates against a public CA *and* matches the hostname succeeds before the pin is ever read.
+- **Why:** R-16 says "that machine and not something answering to its name". A fingerprint pin delivers that, and it does so by replacing the name test, not by strengthening it. Recorded so nobody later reads the pin as a name check that got stricter. The second half is a floor, not a ceiling: the pin cannot reject a certificate the public trust path already accepted.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1843-1894`
+- **Touches:** constraints.md C-4, docs/product/solution.md R-16
+
+## 2026-09-23 — nothing we install can fetch the certificate, and OpenSSL cannot either
+- **Kind:** stack
+- **Fact:** `remmina-plugin-rdp` brings libfreerdp only; there is no FreeRDP command-line binary on a terminal built by `encore-install.sh:83`. `openssl s_client` has no RDP `-starttls` mode (verified against OpenSSL 3.5.7: the accepted values are smtp, pop3, imap, ftp, xmpp, xmpp-server, telnet, irc, mysql, postgres, lmtp, nntp, sieve, ldap). RDP requires an X.224 connection request and negotiation response before the TLS handshake starts, so a bare TLS client cannot reach the certificate.
+- **Why:** capture at install time therefore costs one of: an extra apt package (`freerdp3-x11` ships `/usr/bin/xfreerdp3` on Ubuntu, which gives `/cert:` and a way to print the fingerprint), or roughly thirty lines of our own that speak the X.224 exchange and then hand off to a TLS library. Both are real; neither is free; the choice is a design decision nobody has taken.
+- **Source:** `encore-install.sh:83`; the author's observation of 2026-09-23; `openssl s_client -starttls` on the development machine; packages.ubuntu.com for `xfreerdp3`
+- **Touches:** stack.md, debt.md D-A8
+
+## 2026-09-23 — Q-9: capturing at install time is trust on first use unless a person checks the fingerprint
+- **Kind:** question
+- **Fact:** whatever answers on the configured name during the install is what gets pinned. If an impostor is already in position at that moment, the administrator pins the impostor and every check afterwards passes. The only thing that turns this into identity rather than first-use trust is the administrator reading the fingerprint off the target machine itself, out of band, and comparing it.
+- **Why:** pinning is worth doing either way — it closes every *later* impostor, which is the risk that recurs on every one of thousands of connections, and it is the one an unattended terminal cannot notice. But the difference between "trust on first use, moved earlier" and "verified identity" is entirely a manual step, and asking for that step sits against R-4's promise that a machine becomes a terminal in minutes. Whether the install demands the comparison, offers it, or says nothing is a product call about what R-16 is worth, not an architecture one.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c`; D-002 (the target machine is out of scope — reading a thumbprint on it is an instruction, not a change); R-4, R-16
+- **Touches:** docs/product/solution.md R-4 and R-16; debt.md D-A8
+
+## 2026-09-23 — Q-10: what a pinned mismatch puts on the terminal's screen has not been seen
+- **Kind:** question
+- **Fact:** with `deny-userconfig` set, `tls_verify_certificate` returns -1 and the connection fails without any callback being invoked, so the certificate dialog observed on 2026-09-23 cannot appear. What Remmina then draws — a connection-error dialog, a message in its own window, or nothing — is **not established**, under `-c <profile> --enable-fullscreen --disable-toolbar --enable-extra-hardening` inside `cage`.
+- **Why:** this is the only part of the mechanism that decides whether pinning fixes C-2 or moves the breach. It is a test, not a reading, and the one time this product's screen was watched it disagreed with every other channel (`00-index.md`, open contradiction 3). Guessing it would be deciding C-2 on no evidence.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1743-1745`; `encore-kiosk.sh:10`; `docs/tests.md`
+- **Touches:** constraints.md C-2, debt.md D-A1 and D-A8, docs/tests.md
+
+## 2026-09-23 — telling a pin mismatch from an unreachable machine is cheap at install and dear at runtime
+- **Kind:** for-product
+- **Fact:** D-020 splits failures into "invalid configuration — stop and say so" and "unreachable machine — retry for ever". A pin mismatch is deterministic, repeatable and unfixable by retrying, and libfreerdp emits a unique line for it (`"[certificates.json] configuration denies user to accept certificates"`) which reaches the journal at the template's `freerdp_log_level=INFO`. But the runner sees only Remmina's exit, which carries no failure taxonomy — so classifying a mismatch at runtime means matching a log string from an upstream project, which D-024 makes a moving target.
+- **Why:** the author asked whether the mechanism makes one side of D-020 easier. It does, unevenly: *deciding* that a mismatch is a configuration fault costs nothing, because the pin is part of the configuration by construction. *Detecting* it at runtime, well enough to choose R-17 over R-18, is a fragile string contract we would own. Worth saying which way the cost falls: D-026 makes anything unclassifiable retry for ever, and a pin mismatch retried for ever is a terminal showing nothing indefinitely over a fault a person could repair in two minutes — exactly the harm D-020 exists to prevent.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1743`; `encore-kiosk.remmina.template:113`; D-020, D-024, D-026; R-17, R-18
+- **Touches:** docs/product/decisions.md D-020; debt.md D-A2
+
+## 2026-09-23 — pinning makes D-A5's promise smaller and D-A13's harm smaller
+- **Kind:** debt
+- **Fact:** a pin does not make the stored credential harder to recover, but it removes the remote route that made the local weakness cheap to exploit — after pinning, D-A5's residual exposure is someone holding the machine, and nothing else. Separately, D-A13 allows a second profile to retarget a terminal silently; with a pin and `deny-userconfig`, such a terminal fails to connect instead of sending the credential to the new host.
+- **Why:** the record says D-A5, D-A7 and D-A8 are one conversation. D-A5 genuinely is, and pinning is the half of it that can actually be delivered. D-A7 is not, any more — it is largely repaid, and its remainder is D-A13, which pinning mitigates rather than depends on. Worth correcting so the author is not asked to settle three things when two of them are one.
+- **Source:** debt.md D-A5, D-A7, D-A8, D-A13; FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1743-1745`
+- **Touches:** debt.md D-A5, D-A8, D-A13
+
+## 2026-09-23 — a pin is a third place the installer guarantees something once
+- **Kind:** debt
+- **Fact:** `/etc/FreeRDP/certificates.json` sits outside `/var/lib/encore` and outside the profile. It is written once at install, root-owned, and nothing re-checks it — the same shape as D-A13 (installer and runner disagree) and I-7 (the install record). It must also be removed by `encore-uninstall.sh`, or C-3's promise of a clean undo is broken by a file that changes how every RDP client on that machine behaves.
+- **Why:** the file is global to the machine, not to the `encore` identity. That is what makes it work — no client can opt out — and it is also what makes leaving it behind a real fault rather than untidiness.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/utils/helpers.c:253-296`; `encore-uninstall.sh`; constraints.md C-3; interfaces.md I-7
+- **Touches:** constraints.md C-3, interfaces.md, debt.md
+
+## 2026-09-23 — the global configuration path depends on a build flag nobody has checked on a terminal
+- **Kind:** question
+- **Fact:** `/etc/FreeRDP/certificates.json` is the path only when `freerdp_areApplicationDetailsCustomized()` is false and `FREERDP_USE_VENDOR_PRODUCT_CONFIG_DIR` was not set at build time; otherwise it becomes `/etc/<vendor>/<product>[<version>]/certificates.json`. Verified as `/etc/FreeRDP` on FreeRDP 3.30.0 as Fedora builds it. **Not verified on Ubuntu 26.04**, which is the only distribution a terminal has ever been built on.
+- **Why:** if the path differs, a pin written to the wrong file is silently inert and the terminal connects to anything — the failure is invisible and in the unsafe direction. The check is one line of that machine's own `xfreerdp(1)`, or the absence of the expected log line in the journal, and it must be done before anything is written.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/utils/helpers.c:220-296`; `xfreerdp(1)` on FreeRDP 3.30.0, development machine
+- **Touches:** stack.md, debt.md D-A8, docs/tests.md
+
+## 2026-09-23 — second reading of the same source agreed, and corrected one hedge
+- **Kind:** stack
+- **Fact:** an independent read of the FreeRDP 3.31.0 and Remmina 1.4.43 trees reached the same conclusions on the order of checks in `tls_verify_certificate`, on `cert_ignore` being nothing but `/cert:ignore`, on the absence of any fingerprint key in the profile format, and on the store being PEM files rather than `known_hosts2`. It corrected one hedge: **nothing in Remmina ever creates `<datadir>/RDP`**, so the `access(..., W_OK)` test at `rdp_plugin.c:1673` always fails on a normal install and `ConfigPath` stays at FreeRDP's default. In practice the store is `$HOME/.config/freerdp/server/` — `/var/lib/encore/.config/freerdp/server/` on a terminal — and it stays there unless somebody creates that `RDP` directory, at which point the whole store silently moves and anything seeded is ignored.
+- **Why:** the earlier entry left the path conditional, which would have sent an installer looking in two places. It is one place, with a trip-wire beside it.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c`, `certificate_store.c`, `certificate_data.c`, `utils/helpers.c`; Remmina 1.4.43 `plugins/rdp/rdp_plugin.c:1663-1676`, `src/remmina_file_manager.c:60-142`; store layout observed on two live Remmina installations
+- **Touches:** data.md, debt.md D-A8
+
+## 2026-09-23 — `trust_all` is a second blanket bypass, and it lives in a file we generate
+- **Kind:** debt
+- **Fact:** `remmina.pref` carries a global boolean `trust_all` (`src/remmina_pref.c:359-362`, `:958`), checked in `remmina_protocol_widget_panel_new_certificate` and `..._changed_certificate` (`src/remmina_protocol_widget.c:1857-1868`, `:1895`). When true, every certificate is accepted **including a changed one**, so it is weaker than FreeRDP's own trust-on-first-use. Its default is false. `/var/lib/encore/.config/remmina/remmina.pref` is generated on the terminal by `encore-install.sh:137-142` and nothing in our record has ever looked at what it contains beyond `secret=`.
+- **Why:** we ship a file we do not read. A pin defeated by a preference in a file the installer created and never inspected is the same failure as the template silently losing `cert_ignore`, and it would be just as invisible. Whatever pinning is built has to assert this key, not assume it.
+- **Source:** Remmina 1.4.43 `src/remmina_pref.c:359-362,958`, `src/remmina_protocol_widget.c:1857-1868,1895`; `encore-install.sh:137-149`
+- **Touches:** debt.md, data.md, interfaces.md
+
+## 2026-09-23 — a non-default RDP port changes the store filename twice over
+- **Kind:** data
+- **Fact:** Remmina sets `FreeRDP_CertificateName` to the bare host when the port is 3389 and to `host:port` otherwise (`rdp_plugin.c:431-443`); `tls.c` then uses `CertificateName` as the store key, and `ensure_valid_charset` maps `:` to `.` — so a terminal pointed at port 3390 looks for `host.3390_3390.pem`. Derived from source, **not observed**; no non-3389 example exists on any machine checked.
+- **Why:** R-5 lets an adopter name any machine, and nothing stops them naming a port. Recorded as inference so that if pre-seeding the store is ever chosen, the non-default-port case is tested rather than assumed. The system-wide fingerprint pin has no filename and is not affected.
+- **Source:** Remmina 1.4.43 `plugins/rdp/rdp_plugin.c:431-443`; FreeRDP 3.31.0 `libfreerdp/crypto/certificate_data.c:64-91`
+- **Touches:** data.md, debt.md D-A8
+
+## 2026-09-23 — FreeRDP's trust-on-first-use path exists, is fully non-interactive, and needs no display
+- **Kind:** stack
+- **Fact:** `/cert:tofu` sets `FreeRDP_AutoAcceptCertificate` (`client/common/cmdline.c:3530-3532`). In `tls_verify_certificate`, when no stored entry matches, `if (settings->AutoAcceptCertificate)` accepts at `tls.c:1941-1944` **before** `instance->VerifyCertificateEx` is ever reached (`:1976`), and `accept_certificate == 1` writes the store entry at `:2084-2090`. No stdin is read and no callback fires, so no GTK dialog and no terminal prompt is possible on this path. `+auth-only` makes the X11 client skip the display entirely — observed log line `[xf_pre_connect]: Authentication only. Don't connect to X.` with `DISPLAY` and `WAYLAND_DISPLAY` unset.
+- **Why:** this is the answer to "can we drive it". It can be driven by a shell script over SSH with no session of any kind, which is exactly the shape setup has.
+- **Source:** FreeRDP 3.31.0 `client/common/cmdline.c:3515-3532`, `libfreerdp/crypto/tls.c:1896-1949,2084-2090`; run against a live RDP host on FreeRDP 3.30.0 locally, `xfreerdp /v:<host> /cert:tofu /u:x /p:x +auth-only` with a scratch `HOME`, repeated three times, PEM written every time
+- **Touches:** stack.md, interfaces.md, debt.md D-A8
+
+## 2026-09-23 — capture needs no valid credentials, because TLS precedes NLA
+- **Kind:** interface
+- **Fact:** the certificate is verified and stored during the TLS handshake, before NLA authentication runs. A capture run with deliberately wrong credentials writes the PEM and then fails authentication: observed `XF_EXIT_LOGON_FAILURE` (134) with `/u:x /p:x`, PEM present on disk.
+- **Why:** it means the capture step does not have to hold the RDP password, so it can run before the credential is collected and cannot leak it. It also means the capture cannot be confused by a wrong password — the two failures are separate exit codes.
+- **Source:** observed, FreeRDP 3.30.0, three repetitions; `client/X11/xfreerdp.h:339-390` for the code names
+- **Touches:** interfaces.md, data.md
+
+## 2026-09-23 — the stored PEM yields the pin's hash with stock `openssl`, exactly
+- **Kind:** data
+- **Fact:** the store file is a single plain `-----BEGIN CERTIFICATE-----` block. `openssl x509 -in <pem> -noout -fingerprint -sha256 | sed 's/.*=//; s/://g' | tr 'A-Z' 'a-z'` produced `ed47d1c3…ef41`, byte-identical to the fingerprint FreeRDP itself printed for the same certificate. `openssl` is in the Ubuntu base system; nothing new is needed to read it back.
+- **Why:** closes the "colon-free hex" trap recorded on 2026-09-23 with a verified command rather than an inference.
+- **Source:** observed locally against the PEM written by `/cert:tofu`; hash form required by `libfreerdp/crypto/tls.c:1642-1700`
+- **Touches:** data.md, interfaces.md
+
+## 2026-09-23 — no client binary on a terminal can drive the first-use path, so capture costs one package
+- **Kind:** stack
+- **Fact:** the first-use path lives in libfreerdp but only a *client* can turn it on. On a terminal the only client is Remmina, whose verify callback is a GTK dialog and which cannot run without a graphical session; `trust_all` in `remmina.pref` bypasses the dialog but is weaker still and remains a display-bound path. The headless driver is a FreeRDP command-line client, which on Ubuntu is `/usr/bin/xfreerdp3` from **`freerdp3-x11`** (package page present for the 26.04 suite). The binary is ~0.8 MB; its shared-library dependencies are libfreerdp/libwinpr, already installed by `remmina-plugin-rdp`, plus X11 client libraries, most of which Remmina's GTK stack already pulls (`assumed` for the exact Ubuntu dependency delta).
+- **Why:** the author's hypothesis — drive Remmina's own first-use path — does not survive the no-display requirement. The mechanism is right, the driver is not on the machine. One extra apt package is the whole cost, and `encore-install.sh:83` already runs `apt-get install`.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1976` (client callback), Remmina 1.4.43 `src/remmina_protocol_widget.c:1857-1895`; `packages.ubuntu.com` contents search, `xfreerdp3` → `freerdp3-x11`; local binary size on Fedora
+- **Touches:** stack.md, debt.md D-A8
+
+## 2026-09-23 — FreeRDP exit codes classify a certificate refusal without matching any log string
+- **Kind:** interface
+- **Fact:** `client/X11/xfreerdp.h:339-390` is a named public enum. Observed against a live host with a scratch store: certificate refused (`/cert:deny`) → **143** `XF_EXIT_TLS_CONNECT_FAILED`; host reachable but nothing listening → **141** `XF_EXIT_CONNECT_FAILED`; certificate accepted, credentials wrong → **134** `XF_EXIT_LOGON_FAILURE`. DNS failures are 139/140.
+- **Why:** this replaces the fragile contract recorded earlier the same day — classifying a pin mismatch by grepping libfreerdp's `"[certificates.json] configuration denies user to accept certificates"` line. A numeric enum in a public header is a far cheaper promise to hold across upgrades than a log sentence, and it maps straight onto D-020's two branches. Two cautions: 143 covers any TLS failure, not only a refused pin; and 143 is also `128+SIGTERM`, so anything that kills the client with `SIGTERM` (including a `timeout` wrapper) forges it.
+- **Source:** FreeRDP 3.31.0 `client/X11/xfreerdp.h:339-390`; observed on FreeRDP 3.30.0 locally
+- **Touches:** interfaces.md, constraints.md, debt.md
+
+## 2026-09-23 — the hard-deny exit code is inferred from the auto-deny path, not observed
+- **Kind:** question
+- **Fact:** exit 143 was observed for `/cert:deny` (`AutoDenyCertificate`), not for `deny-userconfig` in `/etc/FreeRDP/certificates.json`, which needs root to place. Both set `verification_status = -1` and leave `tls_verify_certificate` by the same route (`tls.c:1745` and `:2013` both fall through to the same failure), so the same 143 is expected — but it is `assumed`.
+- **Why:** if the two differ, a runner that classifies on 143 would misread a real pin mismatch as something else and D-026 would send it back to retrying for ever, which is the exact harm D-028 exists to stop. One test on a terminal settles it.
+- **Source:** `libfreerdp/crypto/tls.c:1707-1754,2003-2100`; `assumed`
+- **Touches:** debt.md, `docs/tests.md`
+
+## 2026-09-23 — FreeRDP shouts "HOST IDENTIFICATION HAS CHANGED" on a *successful* first accept
+- **Kind:** debt
+- **Fact:** `tls_print_new_certificate_warn` is called at `tls.c:1930`, inside the branch where **no** stored entry was found, and prints the full SSH-style banner including `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!`, `The host key for <host> has changed` and `Host key verification failed.` — and then the code accepts and stores the certificate. Observed on every one of three clean first-use runs, exit 134 with the PEM written.
+- **Why:** anyone classifying a certificate fault by log text would reach for exactly those phrases and would misclassify a healthy first connection as a mismatch. Recorded as a trap, and as the second reason to classify on exit code rather than text. Cosmetic upstream defect, present in 3.31 source and 3.30 behaviour; not ours to fix.
+- **Source:** FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1909-1935`; observed on FreeRDP 3.30.0
+- **Touches:** debt.md, `docs/troubleshooting.md`
+
+## 2026-09-23 — a credential-free pre-flight is the cheapest thing that can satisfy D-028
+- **Kind:** decision
+- **Fact:** D-028 requires the terminal to *stop* on a certificate mismatch and say why. Remmina's exit carries no taxonomy, so the runner cannot get that from Remmina. If `freerdp3-x11` is installed for capture anyway, the same binary gives the runner a pre-flight — `xfreerdp3 /v:<host> /u:- /p:- +auth-only` with no real credentials — whose exit code classifies the fault before Remmina is launched: 143 stop and report, 134 certificate is good and proceed, 139/140/141 unreachable and retry per D-026.
+- **Why:** it converts D-028 from a log-string contract with an upstream project into a numeric one, it needs no credentials, it needs no display, and it adds no package beyond the one capture already costs. What it does cost is a second TLS connection on every restart and a runner that now has a branch in it. Size: S for the capture step, M once the runner classifies and the unit must be told which exit codes are terminal.
+- **Source:** `client/X11/xfreerdp.h:339-390`; observed exit codes, this session; D-028, D-020, D-026 in `docs/product/decisions.md`
+- **Touches:** interfaces.md, stack.md, boundaries.md, a future ADR
+
+## 2026-09-23 — for-product: the pin makes the terminal depend on a package the product never chose
+- **Kind:** for-product
+- **Fact:** every workable capture route puts a FreeRDP command-line client on the terminal permanently, or writes protocol code of our own (~30 lines of X.224 plus a TLS handshake, and a second implementation of a thing FreeRDP already does correctly). The package is the cheaper of the two by a wide margin, and it must be removed by `encore-uninstall.sh` or C-3's clean undo is broken.
+- **Why:** it is a visible change to what "converting a machine" installs, and D-002 forbids touching the target machine but says nothing about the terminal's own footprint. Not a work item — a consequence of D-028 and D-029 the author should see before pinning is built.
+- **Source:** this session
+- **Touches:** debt.md, `docs/product/decisions.md`
+
+---
+
+# 2026-09-23 — capture without a borrowed client (D-030), verified on the wire
+
+## 2026-09-23 — the whole RDP preamble is nineteen bytes each way, and Python's stdlib finishes the job
+- **Kind:** interface
+- **Fact:** sending TPKT+X.224 CR with an `RDP_NEG_REQ` of `requestedProtocols = 0x00000003` (SSL|HYBRID) returned `03 00 00 13 0e d0 00 00 00 00 00 02 0b 08 00 02 00 00 00` — `RDP_NEG_RSP`, selected `0x02` HYBRID — after which `ssl.SSLContext(PROTOCOL_TLS_CLIENT)` with `check_hostname=False`, `verify_mode=CERT_NONE` wrapped the *same* socket, completed TLSv1.3, and `getpeercert(binary_form=True)` returned 1670 bytes of DER. `hashlib.sha256(der).hexdigest()` gave `ed47d1c3744afa9ffa86d80f3dfbe7a2be67c34e4b171e5fe5a61fec5ed5ef41`.
+- **Why:** that hex is byte-identical to the fingerprint FreeRDP wrote for the same host on 2026-09-23, and it is already in the pin's required form — lower-case, no colons — with no `openssl` and no `sed` in between. D-030's route is not a plan, it is a thing that ran.
+- **Source:** run this session against the same live RDP host, Python 3.14.7 / OpenSSL 3.5.7 on the development machine; hash form required by FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1642-1700`
+- **Touches:** ADR-0008, interfaces.md, data.md
+
+## 2026-09-23 — requesting SSL alone gets no certificate at all from an NLA server
+- **Kind:** constraint
+- **Fact:** with `requestedProtocols = 0x01` (SSL only), `0x00` (RDP only), `0x08` (HYBRID_EX only), or with no `RDP_NEG_REQ` at all, the same host answered `RDP_NEG_FAILURE` with `0x00000005 HYBRID_REQUIRED_BY_SERVER` and never started TLS. `0x03` and `0x0b` both selected `0x02` HYBRID and proceeded.
+- **Why:** it is the one byte that decides whether the capture step works at all, and the failure is silent in the sense that it looks like a protocol error rather than a policy answer. Ask for SSL|HYBRID, accept a selection of `0x01` or `0x02`, and treat `0x00` as "this server offers no certificate".
+- **Source:** six variants run against the live host, this session
+- **Touches:** ADR-0008
+
+## 2026-09-23 — Python 3 with `ssl` is in Ubuntu 26.04's minimal install, not merely available
+- **Kind:** stack
+- **Fact:** `ubuntu-minimal` in the `resolute` (26.04 LTS) suite depends on `python3`, and `_ssl.cpython-*.so` ships in `libpython3.14-minimal` — so even the cut-down interpreter has TLS. The version there is 3.14, the same minor as the 3.14.7 the exchange above was verified on.
+- **Why:** D-030 says "only what the terminal already has", and that had to be established rather than assumed. It also means `encore-install.sh:83` needs no new package for capture — the `apt-get install` line is unchanged.
+- **Source:** packages.ubuntu.com, `resolute/ubuntu-minimal` dependency list and contents search for `_ssl.cpython`, read 2026-09-23
+- **Touches:** stack.md, constraints.md C-1
+
+## 2026-09-23 — the probe's TLS envelope must be no stricter than the client's, and by default it is stricter
+- **Kind:** debt
+- **Fact:** Python's default context inherits Ubuntu's OpenSSL security level (SECLEVEL=2) and a TLS 1.2 floor, while the shipped profile sets `tls-seclevel` explicitly for the real client (`encore-kiosk.remmina.template`, and Remmina 1.4.43 `rdp_plugin.c:2106-2110`). A self-signed certificate with a small key or an old signature — the normal case for xrdp and for `gnome-remote-desktop` — could be refused by the probe and accepted by the client. `ctx.set_ciphers(...)` and an explicit `minimum_version` are available and were confirmed to apply. **Corrected 2026-09-23:** this entry said `ctx.set_ciphers("DEFAULT@SECLEVEL=0")`. That string is wrong — measured on Python 3.14.7 / OpenSSL 3.5.7 it lowers the security level *and* drops ten suites the untouched client context offers, the AES-CCM family among them, so it narrows the envelope it was chosen to widen. The shipped string is `ALL:!aNULL@SECLEVEL=0` (129 suites against 61, a strict superset, at level 0); `!aNULL` is load-bearing because `ALL` admits anonymous suites and, with `verify_mode=CERT_NONE`, an anonymous handshake presents no certificate and would be reported as "no certificate" for a healthy target. The requirement is a property, not a literal — see ADR-0008.
+- **Why:** this is the probe's one dangerous failure mode. A probe stricter than the client turns a healthy terminal into a permanent stop, which D-020 names as the more expensive direction to be wrong in. It must be set deliberately, not left to the interpreter's defaults.
+- **Source:** verified on the development machine this session; D-020
+- **Touches:** debt.md, ADR-0008
+
+## 2026-09-23 — SNI is safe to send and safe to omit for an address
+- **Kind:** interface
+- **Fact:** `wrap_socket(server_hostname=...)` with `check_hostname=False` completed against the live host for the name, for its IP literal, and for `None`. Python suppresses the SNI extension for an address rather than raising.
+- **Why:** R-5 lets an adopter name a machine or an address, and a far end that selects a certificate by SNI would otherwise show the probe something different from what the client sees. Passing the configured name through unchanged makes the probe see what the client will see, and costs nothing when the name is an address.
+- **Source:** three handshakes this session, Python 3.14.7
+- **Touches:** ADR-0008, interfaces.md I-6
+
+## 2026-09-23 — the runner can classify D-028 without any contract with an upstream project
+- **Kind:** decision
+- **Fact:** the same probe, run by the runner before it launches the client, classifies from things we own: a socket error (DNS, refused, unreachable, timeout) is D-026's retry; an `RDP_NEG_FAILURE`, a selected protocol of `0x00`, or a fingerprint that is not the pin is exit 78, which ADR-0007's `RestartPreventExitStatus=78` already turns into a permanent stop with our own journal line beside it. Enforcement stays in `/etc/FreeRDP/certificates.json`; the probe decides what to say, not what is allowed.
+- **Why:** it replaces both fragile options at once — the FreeRDP exit-code contract (gone with the package under D-030) and the log-string contract (gone with D-024, and poisoned by the "HOST IDENTIFICATION HAS CHANGED" banner printed on a *successful* first accept). It also survives replacing Remmina, which is the same reasoning D-030 was decided on. Cost: one extra TCP+TLS connection per launch, and a branch in the runner.
+- **Source:** ADR-0008; ADR-0007 `RestartPreventExitStatus=78`; D-020, D-026, D-028, D-030
+- **Touches:** ADR-0008, interfaces.md, boundaries.md, debt.md D-A2
+
+## 2026-09-23 — the probe is a gate, not the guard, and two connections is why
+- **Kind:** constraint
+- **Fact:** the probe's TLS session and the client's are different connections, so a far end could in principle present one certificate to each. The pin file is what actually refuses; the probe only decides which of D-020's two branches the runner takes.
+- **Why:** recorded so nobody later removes `deny-userconfig` on the grounds that "the runner already checks". That would turn a real guarantee into a check with a window in it.
+- **Source:** ADR-0008; FreeRDP 3.31.0 `libfreerdp/crypto/tls.c:1642-1745`
+- **Touches:** ADR-0008, constraints.md C-4
+
+## 2026-09-23 — Q-11: only one kind of far end has ever been spoken to
+- **Kind:** question
+- **Fact:** every observation of the preamble, in this session and in the FreeRDP session before it, is against the one host the author runs. `xrdp` and `gnome-remote-desktop` have never been probed. The exchange is MS-RDPBCGR and is the same shape everywhere; what varies is the answer — an `xrdp` configured with `security_layer=rdp` selects `0x00` and offers no certificate at all, and neither implementation's default certificate strength has been seen.
+- **Why:** the two failures it produces are opposite in cost. Selected protocol `0x00` is a correct, permanent stop on a server that genuinely cannot be pinned. A handshake the probe refuses on strength is a *wrong* permanent stop. Naming which is which needs one probe against each, and neither exists here to probe.
+- **Source:** this session; `assumed` for both implementations
+- **Touches:** docs/tests.md, ADR-0008
+
+## 2026-09-23 — for-product: pinning as a whole is L, and the capture step is the small part of it
+- **Kind:** for-product
+- **Fact:** the probe and the fingerprint it produces are **S** — one small artifact, no new package, verified on the wire. What the author is actually buying with D-028/D-029/D-030 is **L**: the installer must show and record the confirmation, write and remove `/etc/FreeRDP/certificates.json`, drop `cert_ignore=1` from the template in the same change (until it goes, no pin anywhere has any effect), assert `trust_all=false` in the `remmina.pref` we generate and never read, and the runner must grow a pre-flight and a second terminal exit path.
+- **Why:** the capture question was asked on its own and answers cheaply, and the cheap answer could easily be mistaken for the size of the feature. The expensive parts are the ones that make the pin load-bearing rather than decorative; a pin shipped without them is a file that changes nothing.
+- **Source:** ADR-0008; NOTES 2026-09-23 on `cert_ignore` and `trust_all`; `encore-install.sh:83,137-149`; `encore-uninstall.sh`
+- **Touches:** docs/product/decisions.md; debt.md D-A8
+
+## 2026-09-23 — what `remmina-plugin-rdp` actually puts on a terminal: three runtime libraries, no header, no binary
+- **Kind:** stack
+- **Fact:** on Ubuntu 26.04 (`resolute`), `remmina-plugin-rdp` 1.4.43+dfsg-0ubuntu0.26.04.2 installs exactly one object of its own, `/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-rdp.so`, and pulls `libfreerdp3-3`, `libfreerdp-client3-3` and `libwinpr3-3` (plus GTK/cairo/cups). `libfreerdp3-3` ships only `libfreerdp3.so.3` → `libfreerdp3.so.3.24.2`; the archive's `freerdp3` source is 3.24.2 in the release pocket and 3.31.0 in `resolute-updates`. **No development headers** (those are `freerdp3-dev`, not installed) and **no executable of any kind**.
+- **Why:** it settles what "the library is already there" means. There is a loadable `.so` under a versioned soname and nothing else — no `.so` symlink, no header, no tool. Anything that drives it must hardcode the soname and every constant it needs.
+- **Source:** packages.ubuntu.com, `resolute/amd64/remmina-plugin-rdp` dependency list and file list, and `resolute/amd64/libfreerdp3-3` file list, read 2026-09-23
+- **Touches:** stack.md, ADR-0008
+
+## 2026-09-23 — there is no headless FreeRDP client in the Ubuntu archive; the only non-X11 one still needs a compositor
+- **Kind:** stack
+- **Fact:** the `freerdp3` source in `resolute` builds 24 binary packages. Only three contain a client: `freerdp-x11` (`xfreerdp`), `freerdp-sdl` (`sdl-freerdp`), and `freerdp-wayland` (`/usr/bin/wlfreerdp`, depending on `libwayland-client0`, `libwayland-cursor0`, `libxkbcommon0`). `winpr-utils` contains only `winpr-hash` and `winpr-makecert` — neither connects to anything. `freerdp-proxy` and `freerdp-shadow-x11` are servers. There is **no CLI, helper or utility that connects to an RDP server without a display**.
+- **Why:** it closes the "is there another way in" question properly, from the archive rather than from the source tree. `freerdp-wayland` is the near miss — it is not X11 and not SDL, so D-030's *stated* objection does not bite it — but it is still a second remote desktop client installed as a package, used once per terminal, and it needs a running compositor, which setup does not have. D-030's deciding reason (a dependency on a client's packaging buys nothing when the client is expected to be dropped) applies to it unchanged.
+- **Source:** packages.ubuntu.com, `source/resolute/freerdp3` binary package list; file lists for `freerdp-wayland` and `winpr-utils`, read 2026-09-23
+- **Touches:** stack.md, ADR-0008
+
+## 2026-09-23 — driving libfreerdp from ctypes is a binding to a C ABI, not a reuse of an implementation
+- **Kind:** stack
+- **Fact:** the route exists and the calls are nameable: `freerdp_new()`, `freerdp_context_new()`, set `instance->VerifyCertificateEx`, `freerdp_settings_set_string(settings, FreeRDP_ServerHostname, …)` and the port/username equivalents, `freerdp_connect()`, then `freerdp_get_last_error(context)` / `freerdp_get_last_error_name()` for the failure taxonomy. The certificate arrives in the `VerifyCertificateEx` callback — host, port, common name, subject, issuer, **fingerprint string**, flags — during the TLS handshake, before NLA, so no credentials are needed (same point in the exchange our own probe reaches). The exported functions are public API and ABI-held: `struct rdp_freerdp` uses `ALIGN64` numbered slots with `paddingA`…`paddingE` reserved gaps precisely so fields can be added without moving existing ones, and FreeRDP 3 made `rdpSettings` opaque behind `freerdp_settings_get/set_*` for the same reason.
+- **Why:** the honest reading is that the API is stable *and that does not help us as much as it sounds*. From Python there is no compiler and no header on the machine, so every one of `context` at slot 0, `VerifyCertificateEx` at slot 66, each `FreeRDP_*` settings enum integer, each `FREERDP_ERROR_*` code and each callback prototype becomes a hardcoded magic number in our own file, copied from headers we neither ship nor can check. We would own *more* undocumented constants than ADR-0008's nineteen bytes, not fewer, and they would be constants about a private ABI rather than about a published wire format.
+- **Source:** FreeRDP `include/freerdp/freerdp.h` (master) struct layout and padding; soname `libfreerdp3.so.3`; `assumed` that slot numbers in 3.24/3.31 match master
+- **Touches:** ADR-0008, stack.md
+
+## 2026-09-23 — what a wrong constant does: a segfault, and in the runner a segfault means retry for ever
+- **Kind:** constraint
+- **Fact:** a mismatched struct offset or enum id under `ctypes` is not an exception — it is a wild pointer. The visible outcome is a crash or corrupted output, not a message. In the setup step that is a confusing failure a person is watching; in the runner's pre-flight it is a non-78 exit, which ADR-0007's `RestartPreventExitStatus=78` turns into **indefinite retry** (D-026) — exactly the outcome D-028 exists to prevent.
+- **Why:** it is the decisive asymmetry between the two approaches. A wire-protocol probe that meets something unexpected returns bytes that do not parse, and we choose what that means. An ABI binding that meets something unexpected takes the process down before any classification happens, and the safe-looking default (retry) is the wrong branch.
+- **Source:** `assumed` — reasoned from ctypes semantics and ADR-0007's exit contract; not executed
+- **Touches:** ADR-0008, debt.md, constraints.md
+
+## 2026-09-23 — the one genuine advantage of binding to the library, and why it is cheaper to buy without it
+- **Kind:** decision
+- **Fact:** binding to libfreerdp would give the probe **the client's own TLS acceptance envelope**, because it would be the same library, the same OpenSSL configuration and the same code path Remmina's plugin uses — which removes ADR-0008's recorded risk of a probe stricter than the client stopping a healthy terminal. That risk is already closable in our own code for three lines: `check_hostname=False`, `verify_mode=CERT_NONE`, a permissive `set_ciphers(...)` and an explicit low `minimum_version`, all confirmed to apply this session. **Corrected 2026-09-23:** this entry named `set_ciphers("DEFAULT@SECLEVEL=0")`, which was measured to drop ten suites the untouched client context offers (all AES-CCM) and so narrows the envelope rather than widening it. Shipped: `ALL:!aNULL@SECLEVEL=0`. The requirement is the property recorded in ADR-0008 — no stricter than the client it precedes, and never accepting a handshake that presents no certificate — because a cipher string is OpenSSL-build-dependent.
+- **Why:** the probe is a gate, not the guard — `deny-userconfig` in `/etc/FreeRDP/certificates.json` is what actually refuses a certificate. So the probe has no business judging TLS strength at all; it only needs to *see* the certificate. Deliberately making our envelope as permissive as possible is therefore correct on its own terms, and it happens to buy the whole of the library's advantage. The residual direction — probe permissive, client strict — leaves a terminal retrying, which is the status quo today and not what D-028 is about.
+- **Source:** NOTES 2026-09-23 "the probe's TLS envelope must be no stricter than the client's"; ADR-0008 *Consequences*
+- **Touches:** ADR-0008, debt.md
+
+## 2026-09-23 — the major version is where the two approaches diverge most
+- **Kind:** stack
+- **Fact:** the wire preamble is MS-RDPBCGR, a published Microsoft specification, frozen since RDP 5.2 era and identical on every server we could meet; nothing Ubuntu ships can change it. The ABI is versioned `libfreerdp3.so.3` and a FreeRDP 4 would land as a different soname with slots and enum ids free to move. D-024 commits us to the current release and no compatibility handling, so on that day the binding is a rewrite with no warning and the probe is untouched.
+- **Why:** it answers the author's instinct directly. "Reuse an existing implementation" is normally right because the implementation absorbs change on your behalf. Here the thing that changes is the library, and the thing that does not change is the protocol — so the borrowed side is the moving one and the hand-written side is the frozen one. That is the inversion that makes this case unusual.
+- **Source:** MS-RDPBCGR 2.2.1.1/2.2.1.2; Ubuntu soname `libfreerdp3.so.3`; D-024
+- **Touches:** ADR-0008, stack.md
+
+## 2026-09-23 — the Connection Confirm's seventh byte is `00`; ADR-0008's Decision block was wrong and is corrected
+- **Kind:** decision
+- **Fact:** an X.224 Connection Confirm header is LI, code `0xD0`, DST-REF (2), SRC-REF (2), class option (1) — seven bytes, last one `00` for class 0. The capture reads `03 00 00 13 | 0e d0 00 00 00 00 00 | 02 0b 08 00 02 00 00 00`; the `02` is the `RDP_NEG_RSP` type byte, not part of the header. ADR-0008 wrote the header as `0e d0 00 00 00 00 02` and has been corrected in place with a dated note.
+- **Why:** the capture and the specification agree with each other, the ADR agreed with neither, and the ADR's own Connection *Request* line (`0e e0 00 00 00 00 00`) already had the right shape — so it was a transcription slip, not a disagreement about what was seen. Left alone it would have made anyone comparing a real response byte-for-byte reject every real response. The structural parser in `docs/plans/certificate-probe.md` is immune either way, and that is now the rule rather than a workaround.
+- **Source:** NOTES 2026-09-23 capture; MS-RDPBCGR 2.2.1.2 / X.224 CC TPDU structure
+- **Touches:** ADR-0008 (done)
+
+## 2026-09-23 — the probe's TLS floor is TLS 1.0, and it is a decision
+- **Kind:** decision
+- **Fact:** `ssl.TLSVersion.TLSv1`. ADR-0008 said only "an explicit low `minimum_version`"; the number is now in the ADR's addendum.
+- **Why:** Ubuntu's `/etc/ssl/openssl.cnf` imposes a TLS 1.2 floor on anything that does not say otherwise, and a probe stricter than the client stops a healthy terminal for ever — D-020's expensive direction. It is the same argument as `SECLEVEL=0` applied to the version, so it belongs to ADR-0008 rather than to a new decision, and it is not the implementer's preference.
+- **Source:** `docs/plans/certificate-probe.md`; ADR-0008 addendum on the permissive envelope
+- **Touches:** ADR-0008 (done)
+
+## 2026-09-23 — "not RDP" stops, "TLS handshake failed" retries
+- **Kind:** decision
+- **Fact:** the runner contract in ADR-0008 had no row for either. It now has both, under one rule: stop when the evidence is about the target and retrying cannot change it; retry when the failure could be ours or transient. Answered-but-not-RDP is a wrong address — stop, exit 78. A failed handshake after a successful negotiation is a far end that has already proved it speaks RDP — retry.
+- **Why:** anything left unclassified exits non-78 and retries for ever, which is exactly the harm D-028 exists to prevent, so silence here was itself the wrong decision. The asymmetry that decided each: a wrong address is repairable in two minutes by the person who typed it, while a failed handshake is the same status our own too-strict envelope would produce, and stopping healthy terminals on our own strictness is the direction D-020 names as worse.
+- **Source:** ADR-0008 addendum 2026-09-23; D-020, D-026, D-028; ADR-0007's exit-78 contract
+- **Touches:** ADR-0008 (done), debt.md D-A15
+
+## 2026-09-23 — the pre-flight's address comes from the install record, not from the profile
+- **Kind:** boundary
+- **Fact:** ADR-0009. `encore-install.sh` splits the administrator's address once and writes `RDP_HOST=` and `RDP_PORT=` into `/var/lib/encore/encore-install.conf` (I-7); the runner reads those two keys and passes them to the probe. It still never opens the profile. Boundary 4's "must not know the host" is restated as "may know where, never who".
+- **Why:** R-5 permits a port, the port lives inside `server=` in the profile, and the runner is the one part forbidden to read the profile. The split has to happen somewhere; the installer is the only place where a malformed address can be reported to a person who is standing there, and the only place that already holds host and port as separate facts. The alternative gives the runner a parser for a format we do not own and a `:` split that is ambiguous for IPv6, in the file that also holds the password. The boundary genuinely moves — recorded, not widened quietly.
+- **Source:** `encore-kiosk.sh:6`; `encore-install.sh:105-112`, `:121`; `encore-kiosk.remmina.template:37`; I-7
+- **Touches:** ADR-0009, boundaries.md part 4, interfaces.md I-7, debt.md D-A16
+
+## 2026-09-23 — Q-11 now decides between two harms, not two unknowns
+- **Kind:** question
+- **Fact:** Q-11 stands, unchanged in substance, and has landed somewhere concrete. With the runner contract complete, "no TLS offered" stops the terminal for ever and "TLS handshake failed" retries for ever. Those are the two statuses an unprobed `xrdp` or `gnome-remote-desktop` could produce wrongly, and nothing testable locally tells a genuine instance of either from a mistake by us.
+- **Why:** it is no longer an open question about the wire — it is a live cost in the runner's design, chosen on one data point. Whoever designs the pre-flight must be able to see that, which is why it is written into the ADR addendum and not only here.
+- **Source:** NOTES 2026-09-23 "Q-11: only one kind of far end has ever been spoken to"; ADR-0008 addendum
+- **Touches:** ADR-0008 (done), docs/tests.md Test 11 (**corrected 2026-09-23**: this said Test 10; 10 was already "does running setup again leave a working terminal?", so the probe's manual check shipped as Test 11)
+
+## 2026-09-23 — the permissive envelope is a property; the literal cipher string was wrong and is corrected
+- **Kind:** decision
+- **Fact:** ADR-0008's option-D addendum named `set_ciphers("DEFAULT@SECLEVEL=0")`, and this log repeated it twice. Measured on Python 3.14.7 / OpenSSL 3.5.7: the untouched `PROTOCOL_TLS_CLIENT` context offers 61 suites at security level 2; `DEFAULT@SECLEVEL=0` offers 61 at level 0 but is **missing 10 of them**, the whole AES-CCM family among them; `ALL:!aNULL@SECLEVEL=0` offers 129 at level 0, missing none. The shipped probe uses the third. ADR-0008 and both log entries are corrected in place, dated, and the ADR now states the **property** rather than a literal: *no suite the untouched client context offers may be absent, and no unauthenticated suite may be present* — equivalently, never stricter than the client it precedes, and never accepting a handshake that presents no certificate.
+- **Why:** the ADR's own string narrowed the envelope the addendum exists to widen — a far end offering only a CCM suite would be classified a TLS failure while the real client connects to it, which is the false "this configuration is broken" the addendum claims to buy off and the direction D-020 names as expensive. `!aNULL` is independently load-bearing: `ALL` admits anonymous suites, and with `verify_mode=CERT_NONE` a far end selecting one completes a handshake presenting no certificate, giving a false `NO_CERTIFICATE` — a permanent stop — for a healthy target. Recording a literal was the underlying mistake: a cipher string is OpenSSL-build-dependent and this one was already wrong on the first build it met. The property is checked against Python's own default client context as a proxy for the real client's offer list, which is the strongest thing testable without a terminal, and the ADR says so rather than implying the proxy is the client.
+- **Source:** measurements reported by the implementer and reproduced by an independent reviewer, Python 3.14.7 / OpenSSL 3.5.7; ADR-0008 addendum "Its one real advantage is conceded, and bought elsewhere"
+- **Touches:** ADR-0008 (done), NOTES 2026-09-23 entries on the TLS envelope (done)
+
+## 2026-09-23 — a 12–18 byte declared frame length stops the terminal for ever, and nothing said so
+- **Kind:** decision
+- **Fact:** the probe classifies a TPKT frame declaring 12–18 bytes as "not RDP", which ADR-0008's runner table puts on the exit-78, permanent-stop side. No document specified that band; it was settled in an implementation gap. It is **ratified**, not re-opened: a frame that is TPKT-shaped but too short to contain an X.224 Connection Confirm with an `RDP_NEG_RSP` (7 + 8 bytes after the 4-byte header, so 19 in total) cannot be a valid answer to what we sent, and the evidence is about the target, which is exactly the rule the addendum states.
+- **Why:** it belongs on file because it is a stop-for-ever decision and because the risk it carries is one ADR-0008 already accepted in the abstract — a bug in our own frame parser stops healthy terminals permanently. This is the first concrete instance of that risk, and the band rests on the specification rather than on any observation: no real far end has ever answered in it. If a target is ever seen answering with a short frame, this band and not the rule is what to revisit.
+- **Source:** MS-RDPBCGR 2.2.1.2 / X.224 CC TPDU minimum length; ADR-0008 addendum runner table; reviewer finding, 2026-09-23
+- **Touches:** ADR-0008 runner table
+
+## 2026-09-23 — `permissive_tls_context()` mutates the process-global warnings filter
+- **Kind:** debt
+- **Fact:** it wraps the TLS-1.0 deprecation warning in `warnings.catch_warnings`, which swaps and restores the interpreter's global filter and is not thread-safe. Harmless in a standalone script; the installer ticket and the runner's pre-flight both call it from Python. Recorded as `debt.md` D-A17.
+- **Why:** it is a property of the seam, not of the script — the second caller is what makes it real, and it is cheaper to decide who owns warning suppression before that caller exists than to diagnose a warnings filter that is intermittently not what someone set.
+- **Source:** reviewer finding, 2026-09-23; `encore-probe.py` `permissive_tls_context()`
+- **Touches:** debt.md D-A17
+
+## 2026-09-23 — the one-line-stderr guarantee is not architecture, and is not recorded
+- **Kind:** question
+- **Fact:** a reviewer noted the probe's single-line stderr guarantee could break if an underlying error string contains a newline. Deliberately **not** recorded as debt or a constraint. Nothing consumes the probe's stderr as a contract: the runner classifies on the exit code (ADR-0008's table), and the journal accepts any number of lines.
+- **Why:** written down so the decision not to record it is visible rather than looking like an oversight. If anything ever parses that stream — a future status file, a support script — it becomes an interface and the guarantee becomes load-bearing at that moment, not before.
+- **Source:** reviewer finding, 2026-09-23; ADR-0008 runner table
+- **Touches:** nothing yet; interfaces.md if a consumer appears
+
+## 2026-09-23 — `DEFAULT@SECLEVEL=0` narrows the envelope it was chosen to widen [TAKEN 2026-09-23 — folded above and into ADR-0008; no longer waiting]
+- **Kind:** for-architecture (taken)
+- **Fact:** ADR-0008's addendum names `set_ciphers("DEFAULT@SECLEVEL=0")` as one of the three lines that close the stricter-probe risk. Measured while building the probe, on Fedora / Python 3.14.7 / OpenSSL 3.5.7, it does the opposite in part: Python's default cipher list for `PROTOCOL_TLS_CLIENT` is **not** OpenSSL's `DEFAULT`, so the call lowers the security level as intended *and* drops ten-plus suites the untouched context offers, all the AES-CCM ones among them. `encore-probe.py` therefore ships `set_ciphers("ALL:!aNULL@SECLEVEL=0")` — measured a strict superset of the untouched list (129 suites against 61) at security level 0, with anonymous suites excluded because `ALL` admits them and the probe, running `verify_mode=CERT_NONE`, would turn an anonymous handshake into a false `NO_CERTIFICATE` for a healthy target. **The ADR now records a string the code does not use.**
+- **Why:** a far end offering only a CCM suite would be classified `TLS_FAILED` while Remmina connects fine — the false "configuration is broken" that ADR-0008's *Consequences* names and that this very addendum claims to have bought off, and which D-020 calls the more expensive direction. Worth more than correcting the string: the envelope's requirement is testable if stated as a property — *no suite the untouched client context offers may be absent, and no unauthenticated suite may be present* — where a literal cipher string is OpenSSL-build-dependent and was wrong on the first build it met. Both halves of that property are asserted in `encore-probe-test.py`.
+- **Source:** measured against `ssl.SSLContext(PROTOCOL_TLS_CLIENT).get_ciphers()`; `encore-probe.py` `permissive_tls_context()`; ADR-0008 addendum "Its one real advantage is conceded, and bought elsewhere"
+- **Touches:** ADR-0008 (addendum needs correcting), `docs/plans/certificate-probe.md`
+
+## 2026-09-23 — the probe's manual test is Test 11, not Test 10 [TAKEN 2026-09-23 — the stale pointer above is corrected; no longer waiting]
+- **Kind:** for-architecture (taken)
+- **Fact:** `docs/plans/certificate-probe.md` step 7 and the Q-11 entry above both call the probe's manual check "Test 10". `docs/tests.md` Test 10 was already taken by "does running setup again leave a working terminal?", so it shipped as **Test 11 — does the probe agree with the target?**. Nothing else changed; the pass conditions are as the plan wrote them.
+- **Why:** two documents pointing at the same ordinal for different tests is how a record stops being usable, and the ordinal is the only handle these documents have on each other.
+- **Source:** `docs/tests.md`; `docs/plans/certificate-probe.md` step 7
+- **Touches:** NOTES entry "Q-11 now decides between two harms", `docs/plans/certificate-probe.md`
+
+## 2026-09-23 — four outcomes still had no row in ADR-0008's runner table
+- **Kind:** decision
+- **Fact:** the probe defines ten statuses; `2 USAGE`, `5 TIMEOUT` and `9 NO_CERTIFICATE` had no row, and exit `1` (a crash, which is not a status) had none either. A third addendum to ADR-0008 maps all four under the existing rule: `2` **stops**, `5` **retries**, `9` **stops**, `1` **retries**. Every status now has a side — `0` launches; `3`, `4`, `5`, `8`, `1` retry; `2`, `6`, `7`, `9`, `10` stop — and a new probe status is now a change to ADR-0008, not only to the probe. `5` was already named in prose in the original table ("timeout"); it is now tied to the number so nobody has to match wording to a code.
+- **Why:** anything unmapped exits non-78 and retries for ever, which is the harm D-028 exists to prevent, so omission was a decision by accident. The two large costs are named rather than designed away: stopping on `2` means a bug in our own argument handling stops a healthy terminal for ever, offset by that path being decided before any packet leaves the machine and so provable without a network; stopping on `9` rests entirely on the probe never being the reason nothing was presented — `!aNULL` closes the one known way we could cause it, and Q-11 leaves the rest open, since `9` and `8` are the two opposite mistakes an unprobed `xrdp` or `gnome-remote-desktop` could produce and we have put one on each side with one data point.
+- **Source:** `encore-probe.py` module docstring (statuses read from the file, not from memory); ADR-0008 runner tables; review finding, 2026-09-23
+- **Touches:** ADR-0008 (done)
+
+## 2026-09-23 — the Python floor is 3.14, and it is behavioural
+- **CORRECTED the same day — the floor is 3.10, not 3.14.** This entry is kept
+  as written because it was true when written. The defect it rests on was fixed
+  concurrently: the probe no longer reads `.reason`, so the behavioural half of
+  the floor is gone and only the syntactic 3.10 remains. See the entry "the
+  Python floor dissolves to 3.10" at the end of this log, and `constraints.md`
+  C-1, which now carries the whole story.
+- **Kind:** constraint
+- **Fact:** `constraints.md` C-1 now carries CPython ≥ 3.14 beside the systemd ≥ 254 floor, and `stack.md` has a CPython row (it had none — the probe's language was absent from the stack record entirely). Two things set it: **3.10** syntactically, because `bytes | None` and `list[str]` are evaluated at runtime in the probe's signatures; **3.14** behaviourally, and that is binding. Measured on `a..b:3389` on 2026-09-23: 3.10.21 and 3.11.16 raise a bare `UnicodeError` with **no `.reason`**; 3.14.7 raises `UnicodeEncodeError` with `reason='label empty'`. The probe reads `.reason` on that path, so below the floor it raises `AttributeError` inside an `except`, exits 1, and the malformed `RDP_HOST=` that ADR-0008 stops on is retried for ever instead.
+- **Why:** the record said only "Python 3, standard library only", which is not a floor, and the difference is not cosmetic — it inverts a stop-or-retry decision. Stated at 3.14 because that is the highest version measured working and it costs nothing: Ubuntu 26.04 ships it and is the only distribution a terminal has ever been built on.
+- **Source:** measured locally against `/usr/bin/python3.{10,11,14}`, 2026-09-23; CPython `Lib/encodings/idna.py` (bpo-25880, `UnicodeError` → `UnicodeEncodeError`); `encore-probe.py` `UnicodeError` handler. **3.12 and 3.13 were not measured** — no interpreter of either was to hand — so the exact boundary between 3.11 and 3.14 is `assumed`.
+- **Touches:** constraints.md C-1 (done), stack.md (done), debt.md D-A18 (done)
+
+## 2026-09-23 — nothing makes the Python floor visible on the machine
+- **CORRECTED the same day: the floor is 3.10, not 3.14.** The item itself
+  survives — nothing still checks anything — but it is much smaller than this
+  entry describes, because 3.10 is four years old and the failure below it is
+  now a `SyntaxError` at import rather than a silent misclassification.
+- **Kind:** debt
+- **Fact:** recorded as `debt.md` D-A18. `encore-probe.py` has a bare `#!/usr/bin/python3` and `encore-install.sh:79-83` checks no version, so an adopter on an older release gets behaviour the record does not describe with nothing detecting it. Exactly D-A14's shape, one component along.
+- **Why:** D-024 accepts *excluding* older distributions; it does not accept the exclusion being undetectable. Under D-027 there is no resolver, so a check lives in the installer or nowhere.
+- **Source:** `encore-probe.py:1`; `encore-install.sh:79-83`; D-A14, D-024, D-027
+- **Touches:** debt.md D-A18 (done)
+
+## 2026-09-23 — whether the installer should check version floors
+- **Kind:** for-product
+- **Fact:** there are now two undetected version floors, systemd ≥ 254 (D-A14) and CPython ≥ 3.14 (D-A18). Both bite silently and both would be closed by the same few lines in `encore-install.sh`. Whether that is worth doing is a scheduling question and is not settled in the architecture record.
+- **Why:** the technical picture is complete — the checks are cheap, they live in the installer or nowhere under D-027, and the cost of not having them is a terminal that behaves differently from the record with no signal. What is not ours is whether excluding an adopter loudly is better than excluding them silently, which is a product promise.
+- **Source:** D-A14, D-A18, D-027
+- **Touches:** nothing here; it belongs in `BACKLOG.md` if the product manager takes it
+- **AMENDED 2026-09-23:** the Python half of this is now much weaker — the
+  floor is 3.10, not 3.14. The systemd ≥ 254 half is unchanged and is the
+  stronger case of the two.
+
+## 2026-09-23 — the Python floor dissolves to 3.10; it had been read off a defect
+- **Kind:** constraint
+- **Fact:** the floor is **CPython ≥ 3.10**, syntactic. `bytes | None` in a signature at `encore-probe.py:255` is a runtime-evaluated PEP 604 union with no `from __future__ import annotations` in either file, so below 3.10 the module does not import. Independently and at the same number, `socket.timeout` became an alias of `TimeoutError` in 3.10, and the probe separates `5 TIMEOUT` from `4 UNREACHABLE` by catching `TimeoutError` before `OSError` (`:345`, `:366`) — below 3.10 every socket timeout would be reported UNREACHABLE. **The 3.14 figure recorded earlier today is withdrawn**: it was behavioural, derived from the probe reading `UnicodeError.reason`, and the engineer fixed that defect concurrently — the handler now interpolates the exception itself (`:389-408`), which works on every version.
+- **Why:** the number described what the code happened to do, not what the design needs. A constraint read off a defect dissolves when the defect does, and that is worth keeping visible in the record rather than overwriting — it is the clearest example this project has of the difference between a measurement and a requirement. The earlier entries are left in place with correction notes on top for exactly that reason.
+- **Source:** read from `encore-probe.py` and `encore-probe-test.py`, not from the earlier reasoning; suite run on `/usr/bin/python3.{10,11,14}` — 61 tests OK on each — and `encore-probe.py "ex..ample.com"` exits 2 with one line and no traceback on all three; `socket.timeout is TimeoutError` confirmed True on 3.10.21; `docs/tests.md` Test 11 records the engineer's own three-interpreter run. **Nothing below 3.10 was run — none was to hand — so "3.9 fails" is `assumed`** from PEP 604 and the 3.10 changelog.
+- **Touches:** constraints.md C-1 (done), stack.md (done), debt.md D-A18 (done), 00-index.md (done)

@@ -20,6 +20,7 @@ merely renamed.
 | Package manager | apt family only |
 | Display server | Wayland only |
 | Init | systemd only, **and ≥ 254** — `RestartSteps=` / `RestartMaxDelaySec=` arrived there and ADR-0007 depends on them. Older systemd ignores them silently and gives flat retries. |
+| Python | CPython 3, standard library only, **and ≥ 3.10** — see the paragraph below. Below it `encore-probe.py` does not import at all. **Corrected 2026-09-23 down from 3.14**, which was derived from a defect since fixed. |
 | Hardware | none assumed — 32-bit and ARM must be considered in scope |
 | Host distribution | out of scope; the author's own host is a distribution we do not support |
 
@@ -36,6 +37,71 @@ version of anything). A machine on systemd 252 gets a terminal that works and
 retries flat rather than backing off, with nothing anywhere saying why. D-027
 records this cost in the product's own words; it is repeated here because it is
 the mechanism half.
+
+**The Python floor is 3.10, and it is syntactic. Corrected 2026-09-23, the
+same day it was first recorded.**
+
+*What this paragraph said, and why it was right when it was written.* It said
+the floor was **3.14**, and that it was behavioural rather than syntactic:
+`getaddrinfo` IDNA-encodes a name before it looks anything up, and
+`encore-probe.py` turned the resulting error into `2 USAGE` — the stop-for-ever
+side of ADR-0008's table — by reading the exception's `.reason`. That was
+measured, not guessed: on `a..b:3389`, 3.10.21 and 3.11.16 raised a bare
+`UnicodeError` with no `.reason`, while 3.14.7 raised `UnicodeEncodeError` with
+`reason='label empty'`. On the older shape the handler raised `AttributeError`
+inside an `except`, left `main` as a traceback, and exited **1** — the status
+the probe holds unassigned so a crash can never be read as a classification.
+The malformed `RDP_HOST=` that ADR-0008 stops on would have been retried for
+ever instead. The floor was real and the consequence was real.
+
+*What changed.* The defect was fixed concurrently by the engineer. The handler
+now interpolates the exception itself — `{failure}`, not `{failure.reason}`
+(`encore-probe.py:389-408`, and the comment there records why) — which works on
+every version because every `UnicodeError` has a string form. **The behaviour
+the 3.14 figure was derived from no longer exists, so the figure no longer has
+a justification.** Verified 2026-09-23 on all three interpreters to hand:
+`encore-probe.py "ex..ample.com"` exits 2 with one readable line and no
+traceback on 3.10.21, 3.11.16 and 3.14.7, and the test suite passes 61 tests on
+each. `docs/tests.md`, Test 11, is the authority on which interpreters the
+suite has been run under.
+
+*The floor that remains.* Two things in the probe set it, and both give the
+same number:
+
+- **3.10, from syntax, and this is the binding one.** `bytes | None`
+  (`encore-probe.py:255`) is a PEP 604 union evaluated at runtime, in a
+  function signature, with no `from __future__ import annotations` anywhere in
+  either file. Below 3.10 the module does not import, so nothing else about it
+  matters. (`list[str]` at `:437` is only 3.9.)
+- **3.10, from the standard library, independently.** The probe distinguishes
+  `5 TIMEOUT` from `4 UNREACHABLE` by catching `TimeoutError` before `OSError`
+  (`:345`, `:366`). `socket.timeout` became an alias of `TimeoutError` in 3.10;
+  below that it is an `OSError` that is *not* a `TimeoutError`, so every socket
+  timeout would fall through to the `OSError` clause and be reported as
+  UNREACHABLE. Confirmed on 3.10.21: `socket.timeout is TimeoutError`.
+
+Neither was tested on an interpreter below 3.10 — none was to hand — so
+"3.9 fails" is `assumed`, from PEP 604 and from the 3.10 changelog for
+`socket.timeout`, not measured. Everything at and above 3.10 is measured.
+
+*How this was established:* from the code, by reading `encore-probe.py` and
+`encore-probe-test.py` for what they actually require, and by running the suite
+and the malformed-address case on `/usr/bin/python3.{10,11,14}`. Not from the
+earlier reasoning, which is what had gone wrong.
+
+**This is worth keeping as an example.** A constraint was recorded from a
+defect. The measurement was sound, the reasoning was sound, and the number was
+still wrong the moment the defect was fixed — because it described what the
+code happened to do, not what the design needs. A floor derived from a bug
+dissolves when the bug does.
+
+Nothing checks the remaining floor, in the same way and for the same reason
+nothing checks the systemd one — see D-A18 and D-A14 in `debt.md`. Whether
+`encore-install.sh` should check either is a backlog question, not settled
+here. Note that 3.10 is a far weaker case for a check than 3.14 was: it is
+four years old, every apt-family release in scope ships something newer, and
+the failure mode is now a loud `SyntaxError` at import rather than a silent
+misclassification.
 
 **Only one hardware combination has ever been observed**, on 2026-09-23: x86_64
 on a clean Ubuntu 26.04 VM, with Remmina 1.4.43, cage 0.2.1 and FreeRDP 3.31.

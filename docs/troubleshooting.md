@@ -243,6 +243,36 @@ guest — send them through the Boxes menu, or switch from inside with `chvt`.
 
 ---
 
+## Which certificate is the target presenting?
+
+**Check:**
+
+```sh
+python3 ~/encore-probe.py <host>
+```
+
+It prints the SHA-256 fingerprint of the certificate that host presents for
+RDP, in the exact form FreeRDP compares with, and says on stderr what it saw.
+
+It needs **no credentials, no graphical session and no root** — the certificate
+arrives during TLS, before authentication, so the probe never asks for a
+password and never reads the profile. Run it over SSH while the terminal's own
+screen is doing whatever it is doing.
+
+If it cannot get a fingerprint it exits with a status saying why, so a script
+can tell "nothing is listening" from "the certificate is not the one we
+pinned". **`--help` is the authority on those statuses** — read it there rather
+than trusting a copy:
+
+```sh
+python3 ~/encore-probe.py --help
+```
+
+Add `--port` if the target is not on 3389, and `--expect <fingerprint>` to ask
+whether a particular fingerprint is the one being presented.
+
+---
+
 ## The shape of a good debugging session here
 
 1. SSH in. Never debug through the terminal's own screen.

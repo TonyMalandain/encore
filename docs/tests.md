@@ -18,6 +18,10 @@ Status column is what has actually been watched, not what is believed.
 | 5 | Is there sound? | Never run |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
 | 7 | Does it survive a reboot? | Never run |
+| 8 | Where does this machine read the global certificate file? | Never run |
+| 9 | What does the screen show when the handshake is refused? | Never run |
+| 10 | Does running setup again leave a working terminal? | Never run |
+| 11 | Does the probe agree with the target? | Never run |
 
 ---
 
@@ -158,3 +162,115 @@ touching it.
 This is the one that matters for a terminal in a child's room, and it is the
 only way to test the console fix honestly — the failure found on 2026-09-14
 only appears when nobody is sitting at the console holding it.
+
+## Test 8 — where does this machine read the global certificate file?
+
+Both of these must be run **before** anything is pinned. The path below was
+confirmed on a different distribution, never on the one a terminal has actually
+been built on.
+
+```sh
+man xfreerdp 2>/dev/null | grep -i -A3 "certificates.json\|/etc/FreeRDP"
+ls -la /etc/FreeRDP/ 2>&1
+```
+
+**Why it cannot be skipped:** a pin written to a path the library does not read
+is inert, and an inert pin means the terminal goes on accepting any certificate
+— while the record says it is pinned. That is a failure in the unsafe
+direction, and nothing on the machine would report it.
+
+**Pass:** the path the installed library actually reads is established, in
+writing, from that machine.
+
+## Test 9 — what does the screen show when the handshake is refused?
+
+**This one decides whether certificate pinning is worth doing at all.**
+
+Set a deliberately wrong fingerprint so verification must fail, then watch the
+terminal's screen — not the journal, the screen:
+
+```sh
+systemctl restart encore-kiosk.service
+```
+
+**The question:** does anything appear that a person could click? A connection
+error, a message, a dialog — or does the screen stay blank?
+
+The claim to be tested is that a hard refusal fails below the client, so no
+dialog can be constructed and nothing clickable reaches the screen. If that
+holds, pinning closes a hole and leaves the kiosk promise intact. **If anything
+clickable appears, pinning has moved the breach rather than fixed it** — and
+the one time this product's screen was watched, it disagreed with every other
+channel about what was happening.
+
+Run Test 2 and Test 3 again afterwards: the same refusal path is what a dropped
+connection and a broken profile would travel down.
+
+## Test 10 — does running setup again leave a working terminal?
+
+On a machine that is already a working terminal, run the install a second time
+without changing anything about the target.
+
+```sh
+cd ~/encore
+sudo ./encore-install.sh
+```
+
+**Pass:** the terminal still reaches a session afterwards, with no manual repair.
+Check that it did not quietly lose anything on the way:
+
+```sh
+sudo grep -c '^password=.\+' /var/lib/encore/.local/share/remmina/*.remmina
+sudo grep -c '^secret=' /var/lib/encore/.config/remmina/remmina.pref
+find /var/lib/encore/.local/share/remmina -name '*.remmina' | wc -l
+```
+
+The stored password and the key must still be there, and there must still be
+exactly one profile — a second one means the terminal's target is now whichever
+file is found first.
+
+**Why this matters:** re-running setup is the supported way to update a terminal
+whose target certificate has changed (D-031). It is a promise the record makes
+and has never watched being kept.
+
+## Test 11 — does the probe agree with the target?
+
+`encore-probe.py` is proved against a fake server by `encore-probe-test.py`
+(`python3 encore-probe-test.py`, no network, no root). **What no test on this
+machine can prove is that a real target behaves as the one observed target
+did.** That is what this test is for, and only one far end has ever been spoken
+to (Q-11).
+
+**Which Python ran it is part of the result.** On 2026-09-23 the suite was run
+on the development machine under 3.10.21, 3.11.16 and 3.14.7, and passed on all
+three. It is worth saying because it has not always: a defect found in review
+made the probe exit 1 with a traceback on a doubled-dot hostname under 3.10 and
+3.11, while the same code passed the whole suite under 3.14 — CPython rewrote
+the IDNA codec's exception in 3.14. So a pass on the interpreter in front of you
+is not a pass on the interpreter a terminal has. No minimum version is recorded
+anywhere, and the shebang is a bare `#!/usr/bin/python3`; write down which
+Python answered `python3 -V` on any machine you run this on.
+
+Run it on the terminal, against the host ADR-0008 recorded:
+
+```sh
+python3 ~/encore-probe.py <host>
+python3 ~/encore-probe.py <host>
+python3 ~/encore-probe.py --expect ed47d1c3744afa9ffa86d80f3dfbe7a2be67c34e4b171e5fe5a61fec5ed5ef41 <host>; echo $?
+python3 ~/encore-probe.py --expect ed47d1c3744afa9ffa86d80f3dfbe7a2be67c34e4b171e5fe5a61fec5ed5ef40 <host>; echo $?
+```
+
+**Pass:** the first two print
+`ed47d1c3744afa9ffa86d80f3dfbe7a2be67c34e4b171e5fe5a61fec5ed5ef41` and print the
+*same* thing as each other; the third exits `0`; the fourth — one character
+different — exits `10` and prints nothing at all on stdout.
+
+**Repeatability is the point of running it twice.** A fingerprint that changes
+between two runs a second apart cannot be pinned, and everything built on top
+of it (7b, 7d) is then built on sand.
+
+Write down what a *different* kind of target says, too, if one is available —
+`xrdp` or `gnome-remote-desktop`. Exit `6` ("no TLS offered") and exit `8`
+("TLS handshake failed") are the two opposite mistakes the probe could make
+against a far end nobody has tried, and this test is the only thing that would
+find them.
