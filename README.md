@@ -368,4 +368,22 @@ they get fixed in is `BACKLOG.md`.
 | `docs/tests.md` | What to run on a converted machine, and what has been watched |
 | `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
 | `BACKLOG.md` | What order it gets fixed in |
+| `LICENSE` | Apache License 2.0 — the terms you get this under |
+
+---
+
+## License
+
+Apache License 2.0. The full terms are in [`LICENSE`](LICENSE), and the
+copyright notice is in [`NOTICE`](NOTICE).
+
+You may use, change and redistribute this, including commercially. If you
+redistribute it you must keep the licence and the notice, state what you
+changed, and not use the project's name to endorse what you built. The licence
+also grants you the patent rights needed to use it, and takes that grant away
+from anyone who sues over patents in it.
+
+It comes with no warranty of any kind. That is not boilerplate here: several of
+this project's own promises have never been observed working, and `Known issues`
+above says which.
 

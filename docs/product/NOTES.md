@@ -445,3 +445,17 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** They were logged together earlier today as "two version floors" and that framing is wrong. Only one of them turns adopters away, and it is the one nobody would notice. Any decision about checking versions at setup should be made about that one alone; bundling them would spend effort on the harmless case and dilute the argument about the harmful one.
 - **Source:** established by the architect from the code, 2026-09-23
 - **Touches:** solution.md R-1, decisions.md D-024, BACKLOG.md items 4 and 14
+
+## 2026-09-27 — the project has a licence
+- **Kind:** decision
+- **Fact:** The project is released under the Apache License 2.0 (D-032).
+- **Why:** The author's choice. The repository was published with no licence at all, which means nobody who cloned it had permission to use it — the opposite of what the project is for.
+- **Source:** the author, 2026-09-27
+- **Touches:** `decisions.md` (D-032, written), `README.md` (a License section, written), `LICENSE` and `NOTICE` at the root
+
+## 2026-09-27 — per-file copyright headers are not applied
+- **Kind:** question
+- **Fact:** Apache 2.0's appendix recommends a boilerplate header in each source file. The project has none, and this was not decided either way.
+- **Why:** The licence does not require it; a root `LICENSE` is enough to grant the rights. Headers matter when single files travel away from the repository on their own, which for a five-file project is plausible rather than certain.
+- **Source:** assumed — nobody has ruled on it
+- **Touches:** `decisions.md` if it is settled; otherwise `BACKLOG.md` as a small task
