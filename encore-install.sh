@@ -27,6 +27,11 @@ PROFILE="$HOME_DIR/.local/share/remmina/encore-kiosk.remmina"
 PREF="$HOME_DIR/.config/remmina/remmina.pref"
 CONF="$HOME_DIR/encore-install.conf"
 
+# When this run began, in the form journalctl --since understands. The only
+# journal entries that can mention our password are ones this run produced,
+# so every check below reads from here forward instead of the whole journal.
+STARTED=$(date '+%Y-%m-%d %H:%M:%S')
+
 # What this machine was before we touched it. Captured now, before anything
 # changes, and written down so the uninstaller can put it back years later
 # without anyone having to remember.
@@ -170,7 +175,8 @@ echo
 
 # The password reached a command line inside a transient unit. Say so rather
 # than pretending the prompt made it private.
-if journalctl --no-pager -q 2>/dev/null | grep -q 'set-option password'; then
+if journalctl -S "$STARTED" --no-pager -q 2>/dev/null \
+   | grep -q 'set-option password'; then
     echo "WARNING: the password appears in the journal."
     echo "         Rotate it on $RDP_SERVER, or clear the journal."
 fi
