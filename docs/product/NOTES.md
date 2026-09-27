@@ -544,3 +544,19 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** Backlog item 14 exists because a virtual machine is not hardware, and one of its three named worries — whether the compositor runs on an unknown machine's graphics — is answered by the thing having run at all. **What exactly was reached on that machine is not yet recorded**: whether a remote login screen appeared, or only a session started, has been asked and not yet answered, so nothing stronger is claimed here.
 - **Source:** the author, 2026-09-27
 - **Touches:** solution.md R-2, BACKLOG.md item 14, docs/tests.md
+
+## 2026-09-27 — the audio fix is proven on real hardware, and it is one line
+- **Kind:** solution
+- **Profiles:** person at the terminal
+- **Fact:** Declaring the session's type in the capability's own definition lifts the reduced session class, which starts the per-user service manager, which starts the sound server on demand. Observed on the Mac Mini: the class changed from the reduced one to the full one, the manager went from inactive to active, the sound socket appeared, and a client connected to the server as the terminal's identity. The console stayed on the same virtual terminal and seat, and **the remote session was still on the screen afterwards** — the only end-to-end result this project has was not disturbed.
+- **Why:** The mechanism is now observed rather than argued. Before the change, the environment inside the running capability read type `tty` and the reduced class, which is exactly the pair that causes the downgrade — the type only became graphical later, once the compositor had started, by which point the class was already fixed and is never recomputed. The fix works because a declared type is present before the session opens.
+- **Source:** observed by the author on the Mac Mini terminal, 2026-09-27
+- **Touches:** solution.md R-12, BACKLOG.md item 5, docs/plans/audio-both-directions.md
+
+## 2026-09-27 — lifting the session class starts a whole desktop session's worth of services
+- **Kind:** problem
+- **Profiles:** administrator, person at the terminal
+- **Fact:** With the full session class, the terminal's identity gained far more than a sound server: a message bus, a credential keyring, a document portal, an accessibility bus, a speech service, an agent socket and several packaging agents all appeared.
+- **Why:** This is a real widening of what runs on a converted machine, and it was not asked for. **One of those services is the credential keyring this project deliberately put out of reach**, because an unattended terminal has nobody to unlock it — the connection still worked on this machine, so nothing broke, but the reason it did not break is a separate block that must now stay in place for a second reason. It also cuts against the product's claim to add a capability rather than reshape the machine, and it is more surface than the least-privilege decision describes.
+- **Source:** observed by the author on the Mac Mini terminal, 2026-09-27
+- **Touches:** solution.md R-16, decisions.md D-012, BACKLOG.md item 7
