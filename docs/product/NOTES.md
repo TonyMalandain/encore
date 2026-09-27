@@ -490,3 +490,26 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** The promise is currently a claim with an untested failure under it, and the failure is the shape this project keeps being bitten by — everything reports healthy while nothing works. What the terminal should do instead is a product call, not a technical one.
 - **Source:** the architect, 2026-09-27
 - **Touches:** solution.md R-12 and R-18, decisions.md D-014, BACKLOG.md item 5
+
+## 2026-09-27 — audio is missing a permission, not a service
+- **Kind:** solution
+- **Profiles:** person at the terminal
+- **Fact:** The sound server is very likely already running for the terminal's identity, started on demand. What is missing is permission to open the sound hardware: the terminal's session is registered without a seat, and the operating system only grants device access to a session that holds one.
+- **Why:** It moves this from "build a missing thing" to "grant an access we already grant elsewhere". The installer already hands the same identity access to the screen and the input devices for exactly this reason; sound was left out of that list. Not yet observed — one command on a converted machine confirms or refutes it.
+- **Source:** the architect, 2026-09-27
+- **Touches:** BACKLOG.md item 5, solution.md R-12
+
+## 2026-09-27 — "nobody picks a device from a list" has two readings
+- **Kind:** question
+- **Profiles:** person at the terminal, administrator
+- **Fact:** R-12 can mean no choice is put to the person sitting at the terminal, or it can mean no audio choice is made per machine at all, by anyone. The fallback path satisfies the first and breaks the second, because it would have the installer pick an output on each machine.
+- **Why:** `problem.md` argues the stricter reading: audio set up machine by machine is audio that ends up missing on one of them. If that is what R-12 means, a fallback that configures per machine is not a fallback, it is a quiet breach. **This may not need answering** — it only matters if the ordinary path turns out to be unavailable on some machine.
+- **Source:** raised by the architect, 2026-09-27; the reading of `problem.md` is the architect's inference, not a ruling
+- **Touches:** solution.md R-12, problem.md
+
+## 2026-09-27 — the protocol was chosen for audio, and audio ships switched off
+- **Kind:** problem
+- **Fact:** ADR-0004 gives two-way audio as a reason for choosing this remote-desktop protocol. The connection profile the installer writes sets sound off and leaves the microphone empty.
+- **Why:** A reason given for a decision is not delivered by the thing the decision produced. Worth recording as a contradiction in its own right rather than only as an unbuilt requirement.
+- **Source:** the architect, 2026-09-27
+- **Touches:** solution.md R-12, BACKLOG.md item 5
