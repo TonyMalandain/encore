@@ -513,3 +513,18 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** A reason given for a decision is not delivered by the thing the decision produced. Worth recording as a contradiction in its own right rather than only as an unbuilt requirement.
 - **Source:** the architect, 2026-09-27
 - **Touches:** solution.md R-12, BACKLOG.md item 5
+
+## 2026-09-27 — corrected: audio is a missing service after all, and this one was watched
+- **Kind:** solution
+- **Profiles:** person at the terminal
+- **Fact:** **This supersedes the entry above it**, "audio is missing a permission, not a service", which was inference and is now disproved. Observed on a converted machine with the terminal switched on: the sound software is fully installed, and no per-user service manager runs for the terminal's identity. The sound server is started on demand by that manager, so it never starts at all.
+- **Why:** The earlier reading assumed the manager was running and only device permission was missing. It was not running. That reverses which fixes are cheap: adding the identity to the sound group, the answer under the old reading, changes nothing while there is no server to talk to.
+- **Source:** observed by the author on the test machine, 2026-09-27 — the first audio fact in this record that was watched rather than reasoned. Evidence: with the capability active, the runtime directory held the graphical socket but no service-manager directory, no message bus and no sound socket; the per-user manager reported inactive; connecting to the sound server was refused.
+- **Touches:** solution.md R-12, BACKLOG.md item 5
+
+## 2026-09-27 — the author's first hypothesis was the right one
+- **Kind:** problem
+- **Fact:** The author proposed at the outset that switching the machine to the terminal before the ordinary graphical startup meant the sound system was never brought up, and asked whether the fix was to make whatever starts it a requirement. Two rounds of analysis argued the mechanism was elsewhere. Observation agrees with the author.
+- **Why:** Worth recording as a pattern rather than a score. Both analyses reasoned from what *should* happen given the configuration, and both were confident. The thing that settled it was five minutes on a real machine. This record has now been wrong in the same direction three times — reading the code and believing it describes the running system.
+- **Source:** the author, 2026-09-27
+- **Touches:** BACKLOG.md item 5, docs/tests.md

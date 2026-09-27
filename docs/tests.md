@@ -15,7 +15,7 @@ Status column is what has actually been watched, not what is believed.
 | 2 | What happens when the connection drops? | Never run |
 | 3 | What happens with no profile? | Failed as expected, VM, 2026-09-14 |
 | 4 | Does the off-switch give the machine back? | Never run |
-| 5 | Is there sound? | Never run |
+| 5 | Is there sound? | No, and why is now known — VM, 2026-09-27 |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
 | 7 | Does it survive a reboot? | Never run |
 | 8 | Where does this machine read the global certificate file? | Never run |
@@ -274,3 +274,16 @@ Write down what a *different* kind of target says, too, if one is available —
 ("TLS handshake failed") are the two opposite mistakes the probe could make
 against a far end nobody has tried, and this test is the only thing that would
 find them.
+
+**Answered on 2026-09-27, on a VM, with the capability running.** There is no
+sound, and the cause was watched rather than reasoned. The sound software is
+all present. What is absent is the per-user service manager for the terminal's
+identity: the runtime directory held the graphical socket and nothing else —
+no service-manager directory, no message bus, no sound socket — and the manager
+itself reported inactive. The sound server starts on demand through that
+manager, so nothing ever starts it.
+
+Two things this does **not** settle. Whether the terminal can reach the sound
+hardware once a server exists is a separate question nobody has got to, because
+the session also holds no seat. And whether a terminal with no microphone stays
+usable is still untested.
