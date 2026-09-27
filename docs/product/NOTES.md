@@ -459,3 +459,34 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** The licence does not require it; a root `LICENSE` is enough to grant the rights. Headers matter when single files travel away from the repository on their own, which for a five-file project is plausible rather than certain.
 - **Source:** assumed — nobody has ruled on it
 - **Touches:** `decisions.md` if it is settled; otherwise `BACKLOG.md` as a small task
+
+## 2026-09-27 — the audio mechanism is pulse-or-alsa, not pipewire-or-alsa
+- **Kind:** solution
+- **Profiles:** person at the terminal
+- **Fact:** The client library carries no PipeWire backend. It has `pulse`, `alsa` and `oss` only, so PipeWire is reached through its PulseAudio-protocol socket rather than directly.
+- **Why:** It changes only the mechanism, not the promise. R-12 still says sound both ways with nobody picking a device; the author's steer of "prefer PipeWire, else ALSA" is correct as policy and unavailable as written.
+- **Source:** the architect, 2026-09-27, from the library installed on the author's own machine — **not** from either target platform, and no client was installed there to check against.
+- **Touches:** solution.md R-12
+
+## 2026-09-27 — whether the terminal has any audio server at all is unknown
+- **Kind:** question
+- **Profiles:** person at the terminal
+- **Fact:** The identity the terminal runs as is a system account with no login shell. Audio on the target platforms is normally served per-user, started by that user's own service manager. Nothing in this project has ever observed such a manager running for that account, and setup does not arrange one.
+- **Why:** This decides the size of the audio work. If a server is already there, audio is three keys in one file. If it is not, audio is the first requirement that forces the long-standing question of a background service doing a logged-in user's job — a new concept, a changed contract, and a re-test of the one thing that has been observed working.
+- **Source:** the architect, 2026-09-27
+- **Touches:** BACKLOG.md item 5, solution.md R-12
+
+## 2026-09-27 — the D-009 failure is a single-word mistake in a generated file
+- **Kind:** decision
+- **Fact:** The profile key that sends sound to the terminal and the key that sends it to the machine being connected to differ by one word. The second is exactly the outcome D-009 exists to prevent — a child's noise coming out of an adult's room.
+- **Why:** The record treated that failure as an edge case. It is one token in a file this project generates, and the file is already under a rule that says it should be copied from a working machine rather than written by hand.
+- **Source:** the architect, 2026-09-27, from the client's public source rather than an installed build
+- **Touches:** decisions.md D-009, BACKLOG.md item 5
+
+## 2026-09-27 — "usable without a microphone" has a plausible failure behind it
+- **Kind:** question
+- **Profiles:** person at the terminal, administrator
+- **Fact:** D-014 promises a terminal with no microphone is still fully usable. If the input channel fails on such a machine and takes the connection down with it, the terminal's indefinite retry presents that as an unreachable machine and it waits for ever.
+- **Why:** The promise is currently a claim with an untested failure under it, and the failure is the shape this project keeps being bitten by — everything reports healthy while nothing works. What the terminal should do instead is a product call, not a technical one.
+- **Source:** the architect, 2026-09-27
+- **Touches:** solution.md R-12 and R-18, decisions.md D-014, BACKLOG.md item 5
