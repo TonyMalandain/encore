@@ -528,3 +528,19 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** Worth recording as a pattern rather than a score. Both analyses reasoned from what *should* happen given the configuration, and both were confident. The thing that settled it was five minutes on a real machine. This record has now been wrong in the same direction three times — reading the code and believing it describes the running system.
 - **Source:** the author, 2026-09-27
 - **Touches:** BACKLOG.md item 5, docs/tests.md
+
+## 2026-09-27 — the audio diagnosis is complete, and every link was watched
+- **Kind:** solution
+- **Profiles:** person at the terminal
+- **Fact:** There is exactly one fault: nothing starts a sound server for the terminal's identity. Four things were observed on real hardware, in order. The machine makes sound — a test tone played from a named hardware device. The terminal's identity already holds permission to open the sound devices — the access list on the control device names it directly. The terminal's session is registered in a reduced class that is granted no per-user service manager. And the sound server only ever starts through that manager, so it never starts.
+- **Why:** It removes a whole branch of work. The earlier candidate fix — adding the identity to the sound group — is not merely unhelpful, it is answering a question that does not exist: the permission is already granted, because the session holds a seat and is active. What remains is one thing only.
+- **Source:** observed by the author on the Mac Mini terminal, 2026-09-27
+- **Touches:** solution.md R-12, BACKLOG.md item 5, docs/tests.md Test 5
+
+## 2026-09-27 — the product has run on real hardware for the first time
+- **Kind:** problem
+- **Profiles:** owner of the machine being connected to, person at the terminal
+- **Fact:** The author moved from the virtual machine to a Mac Mini, on the grounds that the session was working. Until today every claim in this record rested on one virtual machine.
+- **Why:** Backlog item 14 exists because a virtual machine is not hardware, and one of its three named worries — whether the compositor runs on an unknown machine's graphics — is answered by the thing having run at all. **What exactly was reached on that machine is not yet recorded**: whether a remote login screen appeared, or only a session started, has been asked and not yet answered, so nothing stronger is claimed here.
+- **Source:** the author, 2026-09-27
+- **Touches:** solution.md R-2, BACKLOG.md item 14, docs/tests.md
