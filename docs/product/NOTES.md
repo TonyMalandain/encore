@@ -592,3 +592,18 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** The record describes what the capability does and never describes what it says. The likely cause is ordinary and fixable — output held in a buffer that is never flushed, because the client never exits and is killed. But the question underneath is a product one and has never been asked: **is "an administrator can tell why a terminal is not working" something this product promises, or is it left to whoever is holding it?** Every silent failure in this project's history is downstream of that unanswered question.
 - **Source:** raised by the architect, 2026-09-28; the diagnosis of the cause is theirs and is not yet observed
 - **Touches:** solution.md R-13 and R-17, decisions.md, BACKLOG.md item 13
+
+## 2026-09-28 — starting the sound server ourselves works, and brings nothing else with it
+- **Kind:** solution
+- **Profiles:** person at the terminal, administrator
+- **Fact:** Started by hand as the terminal's identity, with no per-user service manager and no session message bus, the sound server came up, answered on its socket, and offered the machine's **real** output device rather than a placeholder. The runtime directory gained only the sound server's own entries. None of the services the author objected to appeared: no message bus, no credential keyring, no file-system broker, no package-prompt client.
+- **Why:** This is the decisive result for backlog item 5. The proven one-line alternative delivers the same sound and drags a dozen other services in with it; this delivers the sound alone. The set of things running as the terminal's identity is now the set that was written down, which is what R-16 and D-012 ask for. It also needs no change to the uninstaller, because nothing is written outside what is already removed.
+- **Source:** observed by the author on the test virtual machine, 2026-09-28
+- **Touches:** solution.md R-12 and R-16, decisions.md D-012, BACKLOG.md item 5
+
+## 2026-09-28 — what is proven, and what is still only the mechanism
+- **Kind:** question
+- **Fact:** What has been watched is that a sound server can be made to exist for the terminal's identity, cheaply and without widening the machine. **Four things have not been watched.** That the remote-desktop client actually uses it once sound is switched on in the profile. That the terminal's runner can start and stop three long-lived helpers reliably, on a service that restarts as a matter of routine. That the microphone half works at all. And that any of this behaves the same on a Raspberry Pi, where the underlying fault may not even exist.
+- **Why:** This record has three times today turned a mechanism that worked into a claim that the feature worked. Naming the gap while the good news is fresh is the cheapest moment to do it.
+- **Source:** the author's observations of 2026-09-28, read conservatively
+- **Touches:** solution.md R-12, docs/tests.md Test 5, BACKLOG.md items 5 and 14
