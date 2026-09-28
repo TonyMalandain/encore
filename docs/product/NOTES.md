@@ -560,3 +560,35 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** This is a real widening of what runs on a converted machine, and it was not asked for. **One of those services is the credential keyring this project deliberately put out of reach**, because an unattended terminal has nobody to unlock it — the connection still worked on this machine, so nothing broke, but the reason it did not break is a separate block that must now stay in place for a second reason. It also cuts against the product's claim to add a capability rather than reshape the machine, and it is more surface than the least-privilege decision describes.
 - **Source:** observed by the author on the Mac Mini terminal, 2026-09-27
 - **Touches:** solution.md R-16, decisions.md D-012, BACKLOG.md item 7
+
+## 2026-09-28 — sound cannot be asked for without asking for everything else
+- **Kind:** solution
+- **Profiles:** person at the terminal, administrator
+- **Fact:** The packaged sound server declares a hard dependency on the session message bus, and that bus is what starts the credential keyring, the file-system broker, the document portal and the package-prompt client. They hang off the same parent. No choice of session class separates them: the class decides whether a service manager exists, not what it starts.
+- **Why:** It kills two of the three narrower options outright and explains why the proven one-line fix came with a bundle nobody asked for. It also means the only way to get sound and nothing else is to start the sound server ourselves rather than letting the machine start it.
+- **Source:** the architect, 2026-09-28, from the units and manual pages shipped on the author's own machine — **not** from either target platform, and to be re-read there
+- **Touches:** solution.md R-16, decisions.md D-012, BACKLOG.md item 5
+
+## 2026-09-28 — blocking the unwanted services cannot be made to work
+- **Kind:** decision
+- **Profiles:** administrator
+- **Fact:** Blocking the services individually fails on the two the author named. The package-prompt client's name changes every time its package updates, so a block on it goes stale **without any error**. The credential keyring may be started by the login stack rather than by the service manager, which a block cannot reach at all. Blocking the message bus would close most of it and also breaks the sound server, which depends on that bus.
+- **Why:** Cheap to write, unbounded to maintain, and wrong invisibly — which is this project's named recurring failure. A list of names that must be re-checked every release, on two platforms, and that fails silently when it drifts, is worse than not having it.
+- **Source:** the architect, 2026-09-28
+- **Touches:** BACKLOG.md items 5 and 7
+
+## 2026-09-28 — the three promised platforms do not behave the same, and nobody has looked
+- **Kind:** problem
+- **Profiles:** stranger deciding whether to try it, administrator
+- **Fact:** The reduced session class that causes the whole audio fault arrived in a very recent version of the startup system. Two of the three platforms the README promises ship older versions that do not have that class at all. On those machines the session is most likely **not** reduced, the service manager already starts, and audio may already work — which would make this fault specific to one platform.
+- **Why:** Two consequences, and the second is the uncomfortable one. The product promises three platforms and has only ever been watched on one, so a fix aimed at what was observed may be unnecessary elsewhere. And **if the manager already starts on a Raspberry Pi, then the wider set of services the author objected to is already running there today, unobserved** — the privilege concern would predate this work rather than be caused by it. Neither has been checked.
+- **Source:** the architect, 2026-09-28, inferred from version numbers rather than observed on any Raspberry Pi
+- **Touches:** solution.md R-1 and R-16, README.md, BACKLOG.md items 5, 7 and 14
+
+## 2026-09-28 — should the product promise that a silent terminal can be explained?
+- **Kind:** question
+- **Profiles:** administrator
+- **Fact:** Nothing the capability runs reaches the log. Only the startup system's own lines appear. So a terminal with no sound, a terminal showing a certificate prompt, and a terminal whose connection has died all look identical from anywhere except the screen.
+- **Why:** The record describes what the capability does and never describes what it says. The likely cause is ordinary and fixable — output held in a buffer that is never flushed, because the client never exits and is killed. But the question underneath is a product one and has never been asked: **is "an administrator can tell why a terminal is not working" something this product promises, or is it left to whoever is holding it?** Every silent failure in this project's history is downstream of that unanswered question.
+- **Source:** raised by the architect, 2026-09-28; the diagnosis of the cause is theirs and is not yet observed
+- **Touches:** solution.md R-13 and R-17, decisions.md, BACKLOG.md item 13
