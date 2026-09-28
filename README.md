@@ -17,7 +17,7 @@ front of anybody.
 | Needs | Why |
 |---|---|
 | **Raspberry Pi OS "trixie"** (the October 2025 release) **or newer** | Earlier Pi OS releases are missing something the recovery behaviour needs — see below |
-| …or **Ubuntu 24.04 LTS or newer** | 22.04 is too old for the same reason |
+| …or **Ubuntu 26.04 or newer** | The only Ubuntu this has been run on. Older ones also ship a sound stack too old for the audio work in progress |
 | …or **Debian 13 "trixie" or newer** | Debian 12 is too old for the same reason |
 | **Wayland** | `cage` is a Wayland compositor; there is no X11 path |
 | **A current release of the packages below** | No compatibility handling for older ones |
