@@ -124,6 +124,76 @@ Your desktop stays until you reboot. (`systemctl isolate encore-kiosk.target`
 is the one that switches over immediately, tearing down the desktop under you.
 It is useful for a quick try, but it does not reproduce boot conditions.)
 
+## Recommended after it is working — on the *other* machine
+
+**None of this is part of Encore, and none of it runs on the terminal.** It goes
+on the machine the terminals connect to. Encore changes nothing there and makes
+no claims about it — but converting a machine creates these problems, so they
+are listed here rather than left for you to discover.
+
+### Take the power controls away from the session
+
+A terminal fills its screen with the other machine's session, so that session's
+**Power Off** and **Restart** end up in front of whoever is sitting at the
+terminal. They belong to the machine every terminal depends on.
+
+A child finishing at a terminal reaches for Power Off, because that is what you
+do when you have finished with a computer. **Log Out** is the action they
+actually want: it returns the terminal to the remote login screen, which is
+where a terminal should sit.
+
+**First, look for a rule you already have.** This is the step that will waste
+your evening if you skip it:
+
+```sh
+sudo grep -rl "login1" /etc/polkit-1/rules.d/
+```
+
+Rules are read in filename order and **the first one to answer wins**. A rule
+you wrote months ago will silently beat one you add today — the symptom is "I
+added the rule and nothing changed", and nothing in any log says why, because a
+rule that is never reached looks exactly like a rule that is broken. If that
+command prints a file, edit that file rather than adding another.
+
+Then, as root — using the filename that command found, or this one if it found
+nothing:
+
+```sh
+cat > /etc/polkit-1/rules.d/20-no-poweroff.rules <<'EOF'
+// Deny power-off, reboot, suspend and hibernate to everyone but admins.
+//
+// NO, not AUTH_ADMIN: asking for a password leaves the button on screen and
+// offers a box a child cannot answer, which is the trap rather than the cure.
+// NO makes the session hide the entry, leaving Log Out — the action they want.
+//
+// Prefix match, so the -multiple-sessions and -ignore-inhibit variants are
+// covered. Naming actions one by one misses four of them.
+polkit.addRule(function(action, subject) {
+    if (/^org\.freedesktop\.login1\.(reboot|power-off|halt|suspend|hibernate)/.test(action.id)
+        && !subject.isInGroup("wheel")) {
+        return polkit.Result.NO;
+    }
+});
+EOF
+```
+
+`wheel` is the administrators' group on Fedora and RHEL. On Debian and Ubuntu it
+is `sudo` — change it, or the rule locks you out of your own machine's power
+menu. Check with `getent group wheel sudo`.
+
+No restart is needed; polkit picks the file up by itself. Verify against a
+non-admin account:
+
+```sh
+sudo -u <someone> busctl call org.freedesktop.login1 /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager CanPowerOff
+```
+
+`"no"` means it worked. `"challenge"` means the rule is not firing — go back to
+the `grep` above. **Do not judge this by looking at the menu:** the session asks
+once and remembers the answer, so an open session shows the old state until the
+person logs out and back in.
+
 ## Uninstall
 
 **You cannot do this from the terminal's own screen.** That screen belongs to
