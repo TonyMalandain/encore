@@ -85,7 +85,11 @@ printf '\n'
 
 echo "==> packages"
 apt-get update -qq
-apt-get install -y -qq remmina remmina-plugin-rdp cage kbd
+# pipewire, pipewire-pulse and wireplumber are the sound server the runner
+# starts for itself inside the kiosk session. A minimal install may not carry
+# them, and without them the terminal is silent.
+apt-get install -y -qq remmina remmina-plugin-rdp cage kbd \
+                       pipewire pipewire-pulse wireplumber
 
 # --- 2. the user the terminal runs as ---------------------------------------
 
@@ -101,8 +105,21 @@ usermod -aG video,input,render encore
 # --- 3. directories ---------------------------------------------------------
 
 echo "==> directories"
-install -d -o encore -g encore -m 700 "$HOME_DIR/.local/share/remmina"
-install -d -o encore -g encore -m 700 "$HOME_DIR/.config/remmina"
+# install -d applies -o, -g and -m to the LAST component only: the ancestors it
+# creates on the way are root-owned and 0755. So every level inside the
+# identity's own home is created explicitly here, one at a time.
+for d in "$HOME_DIR/.local" "$HOME_DIR/.local/share" "$HOME_DIR/.local/state" \
+         "$HOME_DIR/.local/share/remmina" \
+         "$HOME_DIR/.config" "$HOME_DIR/.config/remmina"; do
+    install -d -o encore -g encore -m 700 "$d"
+done
+
+# Checked because the failure is silent: a directory the terminal cannot write
+# into looks exactly like one it has not needed yet.
+for d in "$HOME_DIR/.local" "$HOME_DIR/.local/share" "$HOME_DIR/.local/state" \
+         "$HOME_DIR/.config"; do
+    [ "$(stat -c %U "$d")" = encore ] || die "$d is owned by $(stat -c %U "$d"), not encore"
+done
 
 # What the machine was, recorded where the uninstaller will look for it.
 # Root-owned and world-readable: the encore user must never be able to edit
@@ -130,6 +147,19 @@ sed -i \
 
 if grep -q CHANGEME "$PROFILE"; then
     die "profile still contains CHANGEME — template and script disagree"
+fi
+
+# sound=remote is one word from sound=local and sends the session's audio to
+# the OTHER machine — a terminal in a child's room playing into an adult's.
+# Checked by name, here, because the runner is not allowed to know anything in
+# the profile (ADR-0009). Written as `if` blocks, not `grep … && die`: under
+# `set -eu` a bare `grep … && die` exits the script when the grep finds
+# nothing, which is the success case.
+if ! grep -q '^sound=local$' "$PROFILE"; then
+    die "profile does not say sound=local — the terminal would be silent (D-009)"
+fi
+if grep -q '^sound=remote' "$PROFILE"; then
+    die "profile says sound=remote — that sends the session's audio to the OTHER machine (D-009 forbids it)"
 fi
 
 # Exactly one profile, or the runner picks an unpredictable target.
@@ -172,6 +202,33 @@ echo "  Switch on from every boot:     systemctl set-default encore-kiosk.target
 echo
 echo "  Undo everything:               sudo $HERE/encore-uninstall.sh"
 echo
+
+# Said here because this is the only moment a person is standing at the
+# machine. The runner decides for itself on every start, so a later backport of
+# wireplumber 0.5 turns sound on with nothing to re-run — BACKLOG.md item 5
+# forbids freezing the audio stack at install time. This reports; it gates
+# nothing.
+WP_VERSION=$(wireplumber --version 2>/dev/null \
+             | sed -n 's/^Compiled with libwireplumber //p' | head -n1 || true)
+WP_MAJOR=${WP_VERSION%%.*}
+WP_REST=${WP_VERSION#*.}
+WP_MINOR=${WP_REST%%.*}
+SOUND_OK=yes
+if [ -z "$WP_VERSION" ] ||
+   [ -z "$WP_MAJOR" ] || [ -n "$(printf '%s' "$WP_MAJOR" | tr -d '0-9')" ] ||
+   [ -z "$WP_MINOR" ] || [ -n "$(printf '%s' "$WP_MINOR" | tr -d '0-9')" ]; then
+    SOUND_OK=no
+elif [ "$WP_MAJOR" -eq 0 ] && [ "$WP_MINOR" -lt 5 ]; then
+    SOUND_OK=no
+fi
+if [ "$SOUND_OK" = no ]; then
+    echo "NOTE: this machine will have no sound."
+    echo "      wireplumber here is '${WP_VERSION:-not readable}'; 0.5 or newer is needed."
+    echo "      The terminal works and connects exactly as it would otherwise —"
+    echo "      it is silent. Install wireplumber 0.5 or newer and restart the"
+    echo "      terminal and sound comes on; nothing here has to be re-run."
+    echo
+fi
 
 # The password reached a command line inside a transient unit. Say so rather
 # than pretending the prompt made it private.

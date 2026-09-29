@@ -9,6 +9,12 @@ Group=encore
 PAMName=login
 WorkingDirectory=/var/lib/encore
 Environment=HOME=/var/lib/encore
+# The client's own account of a failed connection has never reached the
+# journal. This covers the phase before the profile — which already asks for
+# freerdp_log_level=INFO — is read. G_MESSAGES_DEBUG is deliberately NOT set:
+# it floods the journal with GTK chatter, and the logging that matters here
+# does not go through GLib.
+Environment=WLOG_LEVEL=INFO
 #purposefully disable gnome-keyring for password storage
 InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
 InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so

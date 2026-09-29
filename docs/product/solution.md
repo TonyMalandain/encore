@@ -191,16 +191,37 @@ The number is retired and is never reused.
 - **State:** `real`
 - **Evidence:** claimed only
 
-### R-12 — The terminal's own audio devices are the session's defaults, in both directions
+### R-12 — Sound comes out of the speakers in front of the person using the terminal
 - **Serves:** "a terminal with no sound is half a computer, and audio on the
   wrong machine puts a child's noise into an adult's room".
 - **Who it serves:** person at the terminal, owner of the machine being
   connected to.
-- **What they get:** sound comes out of the speakers in front of them and, on
-  a machine that has a microphone, goes in through that microphone — so a call
-  works. Nobody picks a device from a list. A terminal with no microphone is
-  still fully usable.
+- **What they get:** sound from the session plays on the terminal, on whatever
+  output that machine already uses. Nobody picks a device from a list, at either
+  end.
+- **State:** `real`
+- **Evidence:** observed on a virtual machine and on a converted Mac Mini,
+  2026-09-29. A terminal that cannot produce sound says so in one line and still
+  connects — a silent terminal is a terminal, an unreachable one is not. Sound
+  follows the active session on the seat, so using a text console on the terminal
+  can silence it until it restarts (D-034).
+
+### R-19 — A terminal with a microphone can be spoken into
+- **Serves:** "a terminal with no sound is half a computer" — the half of it
+  that makes a call possible rather than only audible.
+- **Who it serves:** person at the terminal.
+- **What they get:** on a machine that has a microphone, the session hears it,
+  with nobody choosing a device. **A terminal with no microphone stays fully
+  usable** — this is the half that matters most, because most old machines have
+  no microphone at all.
 - **State:** `intended`
+- **Note:** untested in both directions of the word. Nobody has spoken into a
+  terminal, and nobody has watched what a terminal with no microphone does. The
+  named risk is that a failing input channel takes the connection down with it,
+  which the indefinite retry (R-18) would then present for ever as an
+  unreachable machine — the promise above would fail in the most confusing way
+  available. Whether the single setting that switches sound on can be limited to
+  one direction is also unknown.
 
 ### R-13 — A stranger can judge the product before installing it
 - **Serves:** "they will decide whether to spend an evening on it by reading,

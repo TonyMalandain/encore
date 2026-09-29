@@ -15,7 +15,7 @@ Status column is what has actually been watched, not what is believed.
 | 2 | What happens when the connection drops? | Never run |
 | 3 | What happens with no profile? | Failed as expected, VM, 2026-09-14 |
 | 4 | Does the off-switch give the machine back? | Never run |
-| 5 | Is there sound? | No, and why is now known — VM, 2026-09-27 |
+| 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed** — VM and Mac Mini, 2026-09-29 · 5b never run · 5c never run |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
 | 7 | Does it survive a reboot? | Never run |
 | 8 | Where does this machine read the global certificate file? | Never run |
@@ -100,13 +100,84 @@ its keep every time the installer changes.
 
 ## Test 5 — is there sound?
 
-There will not be. The template sets `sound=off`, and two-way audio is decided
-(D-009, D-014) but unbuilt. Recorded so nobody spends an evening on it.
+Three questions with three different answers, and one can fail while the others
+pass. Record them separately; a single "Test 5 passed" hides which.
 
-When backlog item 5 is done, this test becomes: play something in the session
-and confirm it comes out of the terminal's speakers, then speak into the
-terminal's microphone and confirm the session hears it — with nobody having
-chosen a device from a list.
+**Run this first, whatever the symptom:**
+
+```sh
+journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+```
+
+**No output means the sound path came up** — the server started, so the fault is
+further along (the client, the channel, the far end, the speakers). **Any output
+is the reason there is no sound, in one line**, and it names which check
+stopped. The runner writes one of `encore: sound: …` or
+`encore: SOUND UNAVAILABLE: …` on every path through its sound code, so an
+empty result here is an answer rather than an absence of one.
+
+Expected noise in the journal, and **not** a fault: complaints about rtkit, the
+desktop portal, mpris, bluez and libcamera. Those are the normal shape of
+running a sound server with no session message bus, which is deliberate (R-16,
+D-012). See `troubleshooting.md`.
+
+### 5a — does sound come out?
+
+The output half, which is what backlog item 5 ships. With a session up, play
+something inside the remote session.
+
+**Pass:** it comes out of the terminal's speakers, and nobody chose a device
+from a list (R-12).
+
+If it is silent, take the `grep` above first, then:
+
+```sh
+journalctl -u encore-kiosk.service -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
+```
+
+`rdpsnd` lines with no sound means the channel opened and the device or the far
+end is the problem. No FreeRDP lines at all means the client's output is still
+not reaching the journal, which is a different defect from the audio one.
+
+**Passed on 2026-09-29, on the test virtual machine and on a converted Mac Mini.**
+Sound from the session came out of the terminal, on both machines, with nobody
+choosing a device. Reported by the author; the marker lines in the journal were
+not read back, so what is recorded here is that it was heard, not that the log
+said so.
+
+### 5b — does the session hear the microphone?
+
+**Not switched on by this ticket** — `microphone=` ships empty and the input
+half is later work. It is tested anyway, because `sound=local` is read as
+switching on both directions from one key, so input may arrive regardless.
+
+On a machine that has a microphone: speak, and check the far end hears it.
+
+**Pass:** the far end hears it. On a machine with no microphone this is recorded
+as **not applicable**, never as a pass.
+
+### 5c — does a terminal with no microphone still connect?
+
+D-014's hard half, and the one that can silently break the product: a failing
+input channel that drops the connection would be retried for ever and present a
+healthy machine as an unreachable host.
+
+**This check runs on every platform**, including ones that have a microphone, by
+running it on the VM — the test VM has no microphone, which is what makes it the
+right machine for this.
+
+```sh
+systemctl restart encore-kiosk.service
+sleep 15
+journalctl -u encore-kiosk.service -b --no-pager | tail -40
+```
+
+**Pass:** the remote login screen appears, and the journal shows no repeated
+restarts.
+
+**Fail:** sound cannot ship as it stands. Stop — R-12 has collided with R-8, and
+which one gives way is the architect's and the product manager's call, not the
+engineer's.
 
 ## Test 6 — must the encryption key travel?
 
@@ -274,16 +345,3 @@ Write down what a *different* kind of target says, too, if one is available —
 ("TLS handshake failed") are the two opposite mistakes the probe could make
 against a far end nobody has tried, and this test is the only thing that would
 find them.
-
-**Answered on 2026-09-27, on a VM, with the capability running.** There is no
-sound, and the cause was watched rather than reasoned. The sound software is
-all present. What is absent is the per-user service manager for the terminal's
-identity: the runtime directory held the graphical socket and nothing else —
-no service-manager directory, no message bus, no sound socket — and the manager
-itself reported inactive. The sound server starts on demand through that
-manager, so nothing ever starts it.
-
-Two things this does **not** settle. Whether the terminal can reach the sound
-hardware once a server exists is a separate question nobody has got to, because
-the session also holds no seat. And whether a terminal with no microphone stays
-usable is still untested.

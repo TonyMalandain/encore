@@ -8,6 +8,18 @@
 #
 # Fill in: server, username. Set the password with encore-install.sh, never
 # by hand — it is encrypted with a key generated on that machine.
+#
+# ONE FIELD WAS CHANGED DELIBERATELY, not carried across: sound=, set to
+# `local` on 2026-09-28 for BACKLOG.md item 5. The value came from the client's
+# own profile editor, not from reasoning — audio was switched on there and the
+# file it wrote was read back. The device half is blank on purpose: the editor
+# offers a free textbox and no list, and a blank device resolves per connection
+# (R-12). `microphone=` stays empty: input is later work.
+#
+# If you regenerate this file from a machine whose profile says sound=off, you
+# will silently turn audio back off. encore-install.sh refuses to install a
+# profile that does not say sound=local, which is the only thing that catches
+# it.
 [remmina]
 password=
 gateway_username=
@@ -19,7 +31,7 @@ preferipv6=0
 ssh_tunnel_loopback=0
 serialname=
 tls-seclevel=
-sound=off
+sound=local
 scale=2
 printer_overrides=
 name=encore-terminal

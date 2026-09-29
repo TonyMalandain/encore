@@ -13,7 +13,7 @@ and no `positioning.md`.
 | `NOTES.md` | Append-only working log, in date order. Where a fact lands before it reaches a formal document, and where the open questions and handoffs live. |
 | `users.md` | The four roles that touch the product, including the stranger deciding whether to try it. |
 | `problem.md` | A short essay: old machines going unused, the afternoon of hand-assembly, and why a half-converted machine is worse than none. |
-| `solution.md` | Prose describing the envisioned product, then requirements `R-1`..`R-18`, each marked `real` or `intended`. Also what the solution is not. |
+| `solution.md` | Prose describing the envisioned product, then requirements `R-1`..`R-19`, each marked `real` or `intended`. Also what the solution is not. |
 | `alternatives.md` | Why the project exists when thin-client platforms already do. Written for the stranger, in categories rather than product names. |
 | `decisions.md` | Dated decision log, `D-001`..`D-035`. Superseded entries stay, marked. Closed decisions only. |
 | `glossary.md` | Terms in users' words. The architect may add the code-side name for each. |

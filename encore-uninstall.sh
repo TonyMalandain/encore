@@ -120,7 +120,8 @@ rm -rf /var/lib/encore
 
 echo
 echo "Removed. Still on this machine, deliberately:"
-echo "  remmina, remmina-plugin-rdp, cage, kbd  (ordinary packages)"
+echo "  remmina, remmina-plugin-rdp, cage, kbd,"
+echo "  pipewire, pipewire-pulse, wireplumber    (ordinary packages)"
 echo "  the copied files in your home directory (encore-*.sh, *.service, …)"
 echo
 

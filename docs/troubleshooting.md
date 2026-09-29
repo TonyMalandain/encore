@@ -241,6 +241,46 @@ nothing else you test means anything until it is there.
 switching hotkeys are handled by your host desktop and may never reach the
 guest — send them through the Boxes menu, or switch from inside with `chvt`.
 
+## A terminal with no sound
+
+**Check, and it is one command:**
+
+```sh
+journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+```
+
+**No output is an answer, not an absence of one.** The runner writes one of
+`encore: sound: …` or `encore: SOUND UNAVAILABLE: …` on every path through its
+sound code, so an empty result means the sound server came up and the fault is
+further along: the client, the channel, the far end, or the speakers. Then:
+
+```sh
+journalctl -u encore-kiosk.service -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
+```
+
+**Any output from the first command is the cause, in one line.** The usual ones:
+
+| The line says | Cause |
+|---|---|
+| `wireplumber … is too old` | below 0.5 there is no profile support, so the sound server cannot be run without a session bus. The terminal works and is silent. |
+| `/usr/bin/… is missing` | the sound packages are not installed. `apt install pipewire pipewire-pulse wireplumber` |
+| `no PulseAudio-protocol socket` | the server started and did not finish coming up. The helpers' own complaints are above the line, in the same journal. |
+| `has no output device` | the server is running and the machine presented no sound output at all. Suspect the hardware or its driver. |
+| `XDG_RUNTIME_DIR is not set` | the session did not get a runtime directory. That contradicts how the unit is understood to work and is worth reporting rather than working around. |
+
+**Expected noise, and it is not a fault.** With no session message bus — which
+is deliberate (R-16, D-012) — the sound server complains on every start about
+rtkit, the desktop portal, mpris, bluez and libcamera. Those lines are the
+normal shape of running without a bus. One real consequence hides among them:
+realtime scheduling is unavailable without the system bus, which may mean audio
+that stutters on old hardware. That is the first thing to suspect if sound works
+but is rough.
+
+**Sound was there and stopped.** Sound follows the active session on the seat,
+so switching to a text console and back leaves the terminal's session without
+it. Restart the terminal. This is known and accepted (D-034), and nothing
+watches for it afterwards — every check above runs at startup only.
+
 ---
 
 ## Which certificate is the target presenting?

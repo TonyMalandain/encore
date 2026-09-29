@@ -36,6 +36,16 @@ systemctl --version | head -1
 
 254 or higher and you qualify, whatever the distribution.
 
+**Sound has a second, softer requirement: wireplumber 0.5 or newer.**
+
+```sh
+wireplumber --version
+```
+
+Below 0.5 the machine still qualifies and the terminal still works — it is
+silent. The install says so once, and every start says so in the journal.
+Ubuntu 24.04 LTS ships 0.4.17, which is why the table above asks for 26.04.
+
 **Below it, nothing appears to be wrong, which is why this is stated so
 plainly.** The terminal installs, connects, and looks fine. But when the
 connection drops it retries at a flat interval instead of backing off
@@ -346,14 +356,29 @@ they get fixed in is `BACKLOG.md`.
    The compositor has no way to switch between windows.
 5. **A sandboxing protection is switched off** so the session can start, so a
    terminal reaches more of its own filesystem than the design intends.
-6. **No sound, and the clipboard is open.** The connection profile is a
-   verbatim copy of one observed working, and the decisions about audio and
-   about closing the clipboard are not delivered yet.
+6. **The clipboard is open.** The connection profile is a verbatim copy of one
+   observed working, and the decision to close the clipboard is not delivered
+   yet.
 7. **The console may not switch by itself** when the capability is started on a
    machine that is already running a desktop. Whether a machine that boots
    straight into terminal mode has the same problem is untested.
 8. **It has never run on old hardware.** Everything watched so far has been on
    a virtual machine.
+9. **Using a text console on the terminal can silence it until it is
+   restarted.** Sound follows whichever session is active on the seat, so
+   switching to a text console and back leaves the terminal's session without
+   it. Nothing on the screen says why. Restarting the terminal brings sound
+   back. This is a known and accepted cost, not a fault to report.
+10. **Sound only works if the machine's sound software is new enough.** It
+    needs wireplumber 0.5 or newer. Below that the terminal installs, connects
+    and works exactly as described — it is simply silent, and says so once at
+    install and on every start. If a terminal is silent, one command says why:
+
+    ```sh
+    journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+    ```
+
+    No output means the sound server came up and the fault is further along.
 
 ---
 
