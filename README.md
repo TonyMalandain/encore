@@ -362,8 +362,9 @@ they get fixed in is `BACKLOG.md`.
 7. **The console may not switch by itself** when the capability is started on a
    machine that is already running a desktop. Whether a machine that boots
    straight into terminal mode has the same problem is untested.
-8. **It has never run on old hardware.** Everything watched so far has been on
-   a virtual machine.
+8. **It has barely run on real hardware.** One converted Mac Mini, since
+   2026-09-27. Everything before that was a virtual machine, and nothing older
+   or stranger than that Mac Mini has been tried.
 9. **Using a text console on the terminal can silence it until it is
    restarted.** Sound follows whichever session is active on the seat, so
    switching to a text console and back leaves the terminal's session without

@@ -616,3 +616,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why it matters beyond one household:** every adopter inherits this the moment they convert a machine, and nobody would think of it in advance. The problem statement already argues that a household believing it is under control when it is not is worse than no conversion at all; this is that, in one click.
 - **Source:** the author, 2026-09-29
 - **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002 and D-015, README.md
+
+## 2026-09-29 — corrected: the power option is a temptation, not a live danger
+- **Kind:** user
+- **Profiles:** person at the terminal, owner of the machine being connected to
+- **Fact:** **This corrects the entry above it.** That entry said the power option on a terminal switches off the machine every other terminal depends on. It does not. Measured from inside a real session, as an ordinary account, the answer is a challenge: the person is asked for an administrator password they do not have, and nothing happens. The machine was never one click from going down.
+- **Why:** The authorisation rules grant the unprompted answer only to a session that is both active **and local** — local meaning attached to a seat. A session arriving over the network has no seat, so it never qualifies, whatever the login service reports about it being active. I read the rule table, saw that an active session needs no password, saw that remote sessions report themselves active, and put the two together. They are two different meanings of the same word.
+- **What survives, and it is the author's original point:** the option is **visible**, and it is the one a child reaches for when they are finished. They get a password box instead. So the cost is a trap and a confusing prompt rather than a downed household — which is still worth removing, and is a smaller and more honest reason to remove it.
+- **Source:** measured by the author from inside a session on the machine being connected to, 2026-09-29. The explanation of *why* is inference; the measurement is not.
+- **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002, README.md
