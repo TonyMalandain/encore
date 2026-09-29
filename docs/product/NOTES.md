@@ -634,3 +634,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why it is in the product's record at all:** the machine is out of scope (D-002) and the fix is the author's own housekeeping. It is written down because **the product is the reason a child is looking at another machine's power button**, and every adopter inherits that the day they convert a machine.
 - **Source:** the author, 2026-09-29, measured — the answer changed from a password challenge to a refusal, and the entry disappeared from the session's menu
 - **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002, README.md
+
+## 2026-09-29 — both of the far machine's traps are closed, and they had one cause
+- **Kind:** user
+- **Profiles:** person at the terminal, administrator
+- **Fact:** The power controls in front of a child, and the repeated password box from the software updater, are the same fault seen twice. A session arriving over the network is not a *local* session to the authorisation service, so everything that happens silently for somebody at the keyboard stops and demands an administrator password instead. Both are fixed on the author's machine and both recipes are now in the README.
+- **Why the two fixes point opposite ways:** the power controls are **refused**, because refusing hides them and a visible button with an unanswerable prompt is the trap itself. The updater is **granted**, because refusing would swap the password box for failure messages. What decides the direction is whether the person should have been able to do the thing at all.
+- **Why this is in the product's record when the machine is out of scope:** the product is the reason anybody is looking at another machine's controls. Every adopter inherits both the moment they convert a machine, and neither is discoverable in advance — the second one announced itself only as six failed authentications in a log nobody was reading.
+- **Source:** observed by the author on the machine being connected to, 2026-09-29
+- **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002, README.md, BACKLOG.md item 6b

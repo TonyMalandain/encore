@@ -194,6 +194,52 @@ the `grep` above. **Do not judge this by looking at the menu:** the session asks
 once and remembers the answer, so an open session shows the old state until the
 person logs out and back in.
 
+### Stop the software updater asking a child for your password
+
+The same quirk causes a second, noisier problem. A session arriving over the
+network is not a *local* session as far as the authorisation service is
+concerned — the system's own rules test for that explicitly — so things that
+happen silently for someone sitting at the keyboard stop and ask for an
+administrator password instead.
+
+The software catalogue refreshes itself in the background. In a terminal's
+session that turns into a password box, repeatedly, in front of somebody who
+cannot answer it. Observed here six times over three days before anyone noticed.
+
+As root on the machine being connected to:
+
+```sh
+cat > /etc/polkit-1/rules.d/20-no-update-prompt.rules <<'EOF'
+// A session over the network has subject.local == false, so actions that are
+// free at the keyboard ask for an admin password instead. This restores the
+// at-the-keyboard answer for the refresh actions only — every one of these
+// already defaults to `yes` for a local session, so nothing extra is granted.
+//
+// Installing, uninstalling and configuring still need an administrator, exactly
+// as they do locally. Parental-control actions are deliberately absent.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.Flatpak.metadata-update" ||
+        action.id == "org.freedesktop.Flatpak.appstream-update" ||
+        action.id == "org.freedesktop.Flatpak.app-update" ||
+        action.id == "org.freedesktop.Flatpak.runtime-update" ||
+        action.id == "org.freedesktop.Flatpak.update-remote") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+```
+
+This one **grants** rather than refuses, which is the opposite of the rule above
+and deliberate. Refusing would remove the password box and replace it with
+failure messages. Granting restores what the person would have had at the
+keyboard.
+
+To check it, open the software application in that person's session and let it
+refresh. No password box means it worked.
+
+If you use parental controls on that machine, note that this rule does not touch
+them, and the action that overrides them stays locked by the system's own rule.
+
 ## Uninstall
 
 **You cannot do this from the terminal's own screen.** That screen belongs to
