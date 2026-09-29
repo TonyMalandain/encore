@@ -625,3 +625,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **What survives, and it is the author's original point:** the option is **visible**, and it is the one a child reaches for when they are finished. They get a password box instead. So the cost is a trap and a confusing prompt rather than a downed household — which is still worth removing, and is a smaller and more honest reason to remove it.
 - **Source:** measured by the author from inside a session on the machine being connected to, 2026-09-29. The explanation of *why* is inference; the measurement is not.
 - **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002, README.md
+
+## 2026-09-29 — the power-off trap is closed, and the recipe has a trap of its own
+- **Kind:** user
+- **Profiles:** person at the terminal, administrator
+- **Fact:** Closed on the author's machine, 2026-09-29. The authorisation rule must **refuse** the power actions outright; refusing-unless-a-password-is-given leaves the button on screen and offers a box a child cannot answer, which is the trap rather than the cure. Refusing outright makes the session hide the entry, so the only thing left is to log out — which is the action they wanted.
+- **The recipe's own trap, and it cost an hour here:** the author already had a rule for this from August that asked for a password. Rules are read in filename order and **the first one to answer wins**, so a second rule added later never ran at all. The symptom was "I added the rule and nothing changed", and nothing in the logs said why — a rule that is never reached is indistinguishable from a rule that is broken. Anyone given this advice needs to be told to look for a rule they already have before adding another. The earlier rule also named each action individually and missed four of them; matching on the prefix covers every variant.
+- **Why it is in the product's record at all:** the machine is out of scope (D-002) and the fix is the author's own housekeeping. It is written down because **the product is the reason a child is looking at another machine's power button**, and every adopter inherits that the day they convert a machine.
+- **Source:** the author, 2026-09-29, measured — the answer changed from a password challenge to a refusal, and the entry disappeared from the session's menu
+- **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002, README.md
