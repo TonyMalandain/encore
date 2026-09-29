@@ -607,3 +607,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why:** This record has three times today turned a mechanism that worked into a claim that the feature worked. Naming the gap while the good news is fresh is the cheapest moment to do it.
 - **Source:** the author's observations of 2026-09-28, read conservatively
 - **Touches:** solution.md R-12, docs/tests.md Test 5, BACKLOG.md items 5 and 14
+
+## 2026-09-29 — the product turns "turn the computer off" into a trap
+- **Kind:** user
+- **Profiles:** person at the terminal, owner of the machine being connected to, administrator
+- **Fact:** The session filling a terminal's screen offers the usual power controls, and those controls belong to the machine being connected to. A child finishing at a terminal will reach for the option that means "I am done with this computer" — and on a terminal that option switches off the machine every other terminal in the house depends on. The action that matches their intention is to log out, which returns the terminal to the remote login screen.
+- **Why:** This is not a fault in the far machine, and it is not solved by saying that machine is out of scope. **The product creates the confusion.** On an ordinary computer the power button belongs to the machine in front of you and means what it says; on a terminal the same button, in the same place, means something else entirely and much worse. The most damaging action available to the person at the terminal is also the most natural one, and nothing warns them.
+- **Why it matters beyond one household:** every adopter inherits this the moment they convert a machine, and nobody would think of it in advance. The problem statement already argues that a household believing it is under control when it is not is worse than no conversion at all; this is that, in one click.
+- **Source:** the author, 2026-09-29
+- **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002 and D-015, README.md
