@@ -662,3 +662,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **What would settle it:** one measurement per terminal in two states — a session sitting at a login screen, and a session playing full-screen video — attributed to the process rather than read off an interface total. Both numbers, not one.
 - **Source:** raised in conversation, 2026-09-29. **No measurement has been taken.** A reading was mentioned and neither the tool nor the unit was established, and bytes-per-second against bits-per-second differ by eight, so nothing is recorded as a figure here on purpose.
 - **Touches:** problem.md, solution.md R-1 and R-2, decisions.md D-016, README.md
+
+## 2026-09-29 — an inactivity timeout is about the network, not about accounts
+- **Kind:** solution
+- **Profiles:** person at the terminal, owner of the machine being connected to
+- **Fact:** Asked what an inactivity timeout should achieve, the author chose stopping an idle terminal from costing the network — not stopping the next child landing in the last child's account. That keeps the work inside what the product covers: the terminal choosing to disconnect is ours, while ending or locking a session belongs to the machine at the other end (D-015).
+- **Why the account reading was set aside:** disconnecting would not have delivered it. A session survives on the far machine when a terminal drops, so reconnecting resumes the same account rather than presenting a login screen. The feature would have looked right and done nothing.
+- **Two things this exposed, and both are larger than the feature:** the promise that a dropped connection is retried for ever (R-18) means a terminal that disconnects itself reconnects immediately, so this cannot be built before the product can tell deliberate disconnection from failure. And nothing in the design watches for input outside the client, so **a terminal that stops on idle has no way to notice somebody sitting down again** — waking it up is a new component, not a setting.
+- **Source:** the author, 2026-09-29
+- **Touches:** solution.md R-18, decisions.md D-015 and D-016, BACKLOG.md items 12, 13 and 13b
