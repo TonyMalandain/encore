@@ -653,3 +653,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Suspected cause, not established:** with a monitor off the graphics hardware may report no display connected, and a compositor given no output has nothing to render to. One reading of what the hardware reports while the screen is off would settle it.
 - **Source:** the author, 2026-09-29
 - **Touches:** solution.md R-8 and R-2, BACKLOG.md item 8b, docs/tests.md Test 7
+
+## 2026-09-29 — nobody knows what a terminal costs the network
+- **Kind:** question
+- **Profiles:** owner of the machine being connected to, stranger deciding whether to try it
+- **Fact:** The record has no number, anywhere, for how much network a terminal uses. Not idle, not busy, not per terminal, not in total.
+- **Why it matters:** D-016 commits the product to two or three terminals in one household, and `problem.md` is an argument for reusing machines a family already has — which means a family's existing network, very often wireless, and often in bedrooms at the far end of a house. A remote session is a video stream. Three children watching something at once is a different proposition from three idle login screens, and the difference has never been measured or even estimated. If it turns out a busy terminal needs more than a bedroom's wifi carries, that is a qualifying condition as real as the systemd version, and the README does not mention the network at all.
+- **What would settle it:** one measurement per terminal in two states — a session sitting at a login screen, and a session playing full-screen video — attributed to the process rather than read off an interface total. Both numbers, not one.
+- **Source:** raised in conversation, 2026-09-29. **No measurement has been taken.** A reading was mentioned and neither the tool nor the unit was established, and bytes-per-second against bits-per-second differ by eight, so nothing is recorded as a figure here on purpose.
+- **Touches:** problem.md, solution.md R-1 and R-2, decisions.md D-016, README.md
