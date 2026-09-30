@@ -765,3 +765,13 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why it is worth recording rather than fixing:** the redirection belongs to the machine being connected to, which is out of scope (D-002). What is in scope is that a child watches a blank screen for the duration and nothing tells them anything is happening — the same question already open about what a terminal shows while it waits.
 - **Source:** measured by the author on the test machine, 2026-09-30
 - **Touches:** solution.md R-6 and R-18, decisions.md D-002, BACKLOG.md item 11
+
+## 2026-09-30 — the product is for anyone who is not administering the machine, not for children
+- **Kind:** user
+- **Profiles:** person at the terminal
+- **Fact:** The author's correction: the product is not for children. It is for any straightforward user; children happen to be the author's own case. The record had drifted the other way — `problem.md` opened with "Children in a household need access to a computer", and the word appeared seven times there, five times in `solution.md` and three in the README.
+- **Why this is drift rather than a change of mind:** nothing was ever decided about serving children specifically. D-001 records a personal project solving the author's own household problem, and the author's instance leaked into the prose as though it were the definition. Nobody chose it; it simply went unexamined.
+- **What the general case actually is, and it is sharper than "any user":** the reason a terminal has to be robust is **that the person using it is not the person administering it.** Someone shown a desktop, a settings panel or an error dialog will click it — not from mischief, but because a screen offering a button is what buttons are for. That is true of a child, a guest, an elderly relative, or anyone at a shared machine, and it is the only assumption the product needs. Framing it as children made the product look narrower than it is and invited an adopter to conclude it was not for them.
+- **What was kept deliberately:** two statements naming the author's household as the concrete instance — one in `problem.md`, one in `users.md`. Removing those would be worse than the drift, because the evidence behind this whole document is one household and the record should not pretend to more.
+- **Source:** the author, 2026-09-30
+- **Touches:** problem.md, users.md, solution.md, README.md

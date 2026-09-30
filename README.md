@@ -137,7 +137,7 @@ A terminal fills its screen with the other machine's session, so that session's
 **Power Off** and **Restart** end up in front of whoever is sitting at the
 terminal. They belong to the machine every terminal depends on.
 
-A child finishing at a terminal reaches for Power Off, because that is what you
+Someone finishing at a terminal reaches for Power Off, because that is what you
 do when you have finished with a computer. **Log Out** is the action they
 actually want: it returns the terminal to the remote login screen, which is
 where a terminal should sit.
@@ -163,7 +163,7 @@ cat > /etc/polkit-1/rules.d/20-no-poweroff.rules <<'EOF'
 // Deny power-off, reboot, suspend and hibernate to everyone but admins.
 //
 // NO, not AUTH_ADMIN: asking for a password leaves the button on screen and
-// offers a box a child cannot answer, which is the trap rather than the cure.
+// offers a box they cannot answer, which is the trap rather than the cure.
 // NO makes the session hide the entry, leaving Log Out — the action they want.
 //
 // Prefix match, so the -multiple-sessions and -ignore-inhibit variants are
@@ -194,7 +194,7 @@ the `grep` above. **Do not judge this by looking at the menu:** the session asks
 once and remembers the answer, so an open session shows the old state until the
 person logs out and back in.
 
-### Stop the software updater asking a child for your password
+### Stop the software updater asking for an administrator password
 
 The same quirk causes a second, noisier problem. A session arriving over the
 network is not a *local* session as far as the authorisation service is

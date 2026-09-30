@@ -30,7 +30,7 @@ merge the roles, it just means one person carries both sets of expectations.
   In the author's household, the author. The product does nothing to their
   machine and makes no claim about it.
 - **What they want:** several people working at once without their own session
-  or their own room being invaded — no child's audio arriving through their
+  or their own room being invaded — no terminal's audio arriving through their
   speakers.
 - **What would make them give up:** discovering that terminals reach into
   their machine in ways they did not agree to. This role never files a

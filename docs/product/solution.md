@@ -122,7 +122,7 @@ The number is retired and is never reused.
 ### R-8 — An active terminal survives a restart and comes back by itself
 - **Serves:** "if the machine ever drops back to its own local desktop — after a
   reboot… — then it has stopped being a terminal and quietly become an
-  unmanaged computer in a child's room".
+  unmanaged computer in somebody's room".
 - **Who it serves:** person at the terminal, terminal administrator.
 - **What they get:** a terminal that has been switched on stays switched on. It
   comes back from a reboot or a power cut to the remote login screen with
@@ -156,7 +156,7 @@ The number is retired and is never reused.
   long, is not settled — an open question in `NOTES.md`.
 
 ### R-9 — Only the machine's root administrator can deactivate the capability
-- **Serves:** "a child who can turn the kiosk off has simply been given an
+- **Serves:** "someone who can turn the kiosk off has simply been given an
   unsupervised computer by another route".
 - **Who it serves:** terminal administrator.
 - **What they get:** the off-switch is out of reach of the person sitting at
@@ -193,7 +193,7 @@ The number is retired and is never reused.
 
 ### R-12 — Sound comes out of the speakers in front of the person using the terminal
 - **Serves:** "a terminal with no sound is half a computer, and audio on the
-  wrong machine puts a child's noise into an adult's room".
+  wrong machine puts one person's noise into another person's room".
 - **Who it serves:** person at the terminal, owner of the machine being
   connected to.
 - **What they get:** sound from the session plays on the terminal, on whatever
@@ -232,7 +232,7 @@ The number is retired and is never reused.
 - **State:** `intended`
 
 ### R-14 — The one credential the terminal holds is kept encrypted
-- **Serves:** the terminal being "an unmanaged computer in a child's room" if
+- **Serves:** the terminal being "an unmanaged computer in somebody's room" if
   anything about it is left casually open.
 - **Who it serves:** terminal administrator, owner of the machine being
   connected to.
@@ -254,7 +254,7 @@ The number is retired and is never reused.
 - **Evidence:** read in code, never observed.
 
 ### R-16 — The capability reaches only what it needs
-- **Serves:** the same commitment — what an unattended machine in a child's
+- **Serves:** the same commitment — what an unattended machine in somebody's
   room can touch is what the adopter is really agreeing to.
 - **Who it serves:** terminal administrator, prospective adopter, owner of the
   machine being connected to.
