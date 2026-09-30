@@ -48,6 +48,101 @@ query: it names an implementation detail that will one day be wrong.
 
 ---
 
+## The session takes a very long time to appear at boot
+
+**Symptom:** the machine boots, the screen sits on a text console or a blank
+colour for a long time — minutes, not seconds — and then the remote login
+screen appears on its own with nobody touching it. It is not broken. It is
+late.
+
+**The distinguishing fact:** during the wait, `journalctl -t encore-kiosk`
+returns *nothing at all*. Not an error — nothing. The capability has not
+started yet, so it has written nothing. A slow capability logs slowly; a
+capability that has not started logs not at all, and that is what tells the two
+apart.
+
+**Check.** The delay is upstream of Encore, so ask the startup system what it
+was doing:
+
+```sh
+systemd-analyze blame | head -20
+systemd-analyze critical-chain encore-kiosk.service
+```
+
+The first ranks every unit by how long it took. The second shows what Encore
+was queued behind, with the time each unit became active after the `@`.
+
+**Read `critical-chain` with care: it prints one path only.** Where several
+units must finish before the same target, it shows one of them and says nothing
+about the others — so the unit that actually cost the time can be absent from
+the output entirely. Trust `blame` for *what was slow* and `critical-chain` for
+*what Encore waited on*; neither answers both.
+
+**Cause:** whatever `blame` puts at the top. `encore-kiosk.service` is ordered
+after `network-online.target`, so anything holding that target back holds the
+terminal back with it, second for second.
+
+**Fix:** correct the slow unit. There is no general answer, because the cause is
+a property of the machine rather than of this product.
+
+### The one instance seen so far
+
+Observed on a converted Mac Mini, 2026-09-30. Boot at 09:40:02, capability
+started at 09:42:10 — **two minutes and eight seconds of nothing**, then a
+session on screen 4.5 seconds later. The capability itself was never slow.
+
+```
+2min 197ms systemd-networkd-wait-online.service
+   49.168s NetworkManager-wait-online.service
+```
+
+Both network stacks were installed and enabled. `systemd-networkd` managed no
+interface on that machine — NetworkManager owned the WiFi — and its wait service
+requires *at least one* link it manages to come online. Zero can never satisfy
+one, so it waited out its built-in 120-second timeout, failed, and boot carried
+on regardless.
+
+**A suspiciously round number is the clue.** Software does not wait 120.197
+seconds by accident; that is a timeout, not a hang.
+
+Establish it with:
+
+```sh
+systemctl is-enabled systemd-networkd-wait-online.service NetworkManager-wait-online.service
+networkctl list
+```
+
+Two `enabled` lines and a `SETUP` column reading `unmanaged` on every row is the
+proof: one stack is waiting on interfaces the other one owns.
+
+The fix is to remove the stack that manages nothing — not to mute its
+complaint:
+
+```sh
+sudo systemctl disable --now systemd-networkd.service systemd-networkd.socket
+```
+
+Reverse it with `systemctl enable --now` on the same two units, then
+`netplan apply`.
+
+**Never `mask` `systemd-networkd.service`.** `netplan apply` crashes on a masked
+unit and can take the network down with it; `disable` is recoverable and `mask`
+is not. Masking `systemd-networkd-wait-online.service` alone is harmless, but it
+silences a symptom and leaves the wrong stack running.
+
+**Which stack owns the machine decides which one to remove**, so check before
+acting. Files named `90-NM-*.yaml` in `/etc/netplan/` are written by
+NetworkManager and mean it is the one in charge. A `renderer:` line names it
+explicitly — but read every file, because netplan defaults to `networkd` where
+none is given, and a `.dpkg-backup` suffix means the file is ignored entirely.
+
+**Two things this is not.** It is not a defect in Encore, and nothing here is
+changed by installing or removing it. And it has nothing to do with the screen
+being off at boot, which is what it was mistaken for — see the note under
+*Nothing on screen, nothing in the log*.
+
+---
+
 ## Nothing on screen, nothing in the log
 
 **Symptom:** the service starts, the journal shows the unit started and a PAM

@@ -569,15 +569,33 @@ they get fixed in is `BACKLOG.md`.
     ```
 
     No output means the sound server came up and the fault is further along.
-11. **The screen must already be on when the machine starts.** Observed on
-    2026-09-29. If the monitor is switched off at boot, the terminal does not
-    come up properly and no session appears; switch the screen on and restart
-    the machine. **This is the worst issue on the list**, because the case that
-    triggers it is the one nobody is watching: a power cut at night, a monitor
-    somebody switched off, and a dead terminal in the morning that the person
-    using it cannot repair. The likely cause is that hardware reports no display
-    attached while a monitor is off, and there is then nothing for the terminal
-    to draw on. Not yet diagnosed and not yet fixed.
+11. **A terminal can take minutes to show its session at boot — and the cause is
+    usually not this software.** Reported on 2026-09-29 as "the screen must be on
+    when the machine starts", and **measured on 2026-09-30, where the monitor
+    turned out to be irrelevant.** With the monitor switched off, the graphics
+    hardware still reported the display connected and the terminal set a mode on
+    it normally; what actually happened was that the terminal started **two
+    minutes and eight seconds late**, then reached a session in 4.5 seconds.
+
+    `encore-kiosk.service` waits for the network before it starts, so anything
+    slow earlier in your machine's startup delays the terminal second for
+    second. On the machine measured, two network stacks were installed and the
+    unused one blocked boot for its full 120-second timeout.
+
+    **If your terminal is slow to appear, the boot log will name the cause:**
+
+    ```sh
+    systemd-analyze blame | head -20
+    systemd-analyze critical-chain encore-kiosk.service
+    ```
+
+    `docs/troubleshooting.md` has the full procedure under *The session takes a
+    very long time to appear at boot*, including the two-network-stack case and
+    how to tell which stack your machine actually uses.
+
+    **One distinguishing check while you wait:** if
+    `journalctl -t encore-kiosk` prints nothing at all, the terminal has not
+    started yet and the delay is upstream of it.
 
 ---
 
