@@ -24,15 +24,86 @@ stop_helpers() {
     HELPER_PIDS=
 }
 
-# Wait up to $2 seconds for the path $1 to exist. Returns 1 on timeout.
-wait_for() {
+# Is something listening on the Unix socket at $1?
+#   0  yes — a server accepted a connection
+#   1  no  — $1 exists and nothing is bound to it (a socket a dead session left)
+#   2  no  — $1 does not exist
+#   3  could not be established
+# Exit statuses, not text: the caller must branch on all four.
+socket_is_listening() {
+    [ -e "$1" ] || return 2
+    command -v python3 >/dev/null 2>&1 || return 3
+    python3 - "$1" <<'PY'
+import errno, socket, sys
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(2)
+try:
+    s.connect(sys.argv[1])
+except FileNotFoundError:
+    sys.exit(2)
+except ConnectionRefusedError:
+    sys.exit(1)
+except OSError as e:
+    sys.exit(1 if e.errno == errno.ECONNREFUSED else 3)
+else:
+    sys.exit(0)
+finally:
+    s.close()
+PY
+}
+
+# Decide whether we may start a server that will bind $1, and clear the way if
+# we may. Logs the distinguishing line itself in every branch that carries a
+# fact; an absent path carries none.
+#   0  the path is clear: nothing is listening, nothing is in the way
+#   1  something is already listening there — not ours, leave it alone
+#   2  could not be established, or a dead socket could not be removed
+#
+# Returning 0 only after the path has actually been cleared is deliberate: the
+# permission to start and the clearing are the same event, so there is no
+# prepare-then-use pair to forget. rm -f runs only where a connect(2) was
+# refused, which means the kernel has no listener bound to that path.
+claim_socket_path() {
+    socket_is_listening "$1"
+    case $? in
+        0)
+            log "sound: a sound server is already listening on $1; leaving it alone"
+            return 1
+            ;;
+        2)
+            return 0
+            ;;
+        1)
+            log "sound: the socket at $1 was left by a session that has ended and nothing is listening on it; removing it"
+            if ! rm -f "$1"; then
+                log "SOUND UNAVAILABLE: a dead socket at $1 could not be removed"
+                return 2
+            fi
+            return 0
+            ;;
+        *)
+            log "SOUND UNAVAILABLE: something exists at $1 and whether a sound server is listening on it could not be established, so no second server was started beside a possibly working one"
+            return 2
+            ;;
+    esac
+}
+
+# Wait up to $2 seconds for something to be listening on $1. Returns 1 on
+# timeout. Succeeds on socket_is_listening 0 (a server accepted) and on 3
+# (something is there and it cannot be interrogated) — from a path that
+# claim_socket_path found clear, both mean the server just started has bound. A
+# dead socket (1) and an absent path (2) both keep waiting, which is the whole
+# difference from the existence test this replaces: that one returned success
+# instantly for a socket a dead session had left behind.
+wait_for_socket() {
     _waited=0
-    while [ ! -e "$1" ]; do
+    while true; do
+        socket_is_listening "$1"
+        case $? in 0|3) return 0 ;; esac
         [ "$_waited" -lt "$2" ] || return 1
         sleep 1
         _waited=$((_waited + 1))
     done
-    return 0
 }
 
 # The sound server is started here, inside the kiosk's own PAM session, rather
@@ -59,11 +130,12 @@ start_sound() {
 
     # On a machine where this fault does not exist, something already runs a
     # sound server for this identity. Starting a second one beside a working
-    # one is the one way this change could break a machine that was fine.
-    if [ -e "$XDG_RUNTIME_DIR/pulse/native" ]; then
-        log "sound: a PulseAudio-protocol socket already exists; leaving it alone"
-        return 0
-    fi
+    # one is the one way this change could break a machine that was fine. So the
+    # question is whether something is *listening*, not whether a file is there:
+    # a restart — the normal case, because a dropped connection causes one —
+    # finds the socket the previous session left behind, and answering by
+    # existence reported success and started nothing.
+    claim_socket_path "$XDG_RUNTIME_DIR/pulse/native" || return 0
 
     for _bin in /usr/bin/pipewire /usr/bin/pipewire-pulse /usr/bin/wireplumber; do
         if [ ! -x "$_bin" ]; then
@@ -92,6 +164,23 @@ start_sound() {
         return 0
     fi
 
+    # The second half of the same bug: pipewire's own socket can be left behind
+    # by a session that has ended too. A PipeWire server that is genuinely
+    # listening while nothing serves the PulseAudio protocol is a state nobody
+    # has ever observed on any machine, so this declines it loudly rather than
+    # attaching our own session manager to a sound graph this capability did not
+    # create — that is the shape of breaking a machine that was previously fine.
+    claim_socket_path "$XDG_RUNTIME_DIR/pipewire-0"
+    case $? in
+        1)
+            log "SOUND UNAVAILABLE: a PipeWire server is already listening on $XDG_RUNTIME_DIR/pipewire-0 but nothing is listening on $XDG_RUNTIME_DIR/pulse/native; helpers were not started beside a sound server this capability did not start"
+            return 0
+            ;;
+        2)
+            return 0
+            ;;
+    esac
+
     # </dev/null because the unit sets StandardInput=tty for libseat, and a
     # helper that inherits that tty can be stopped by SIGTTIN. Output goes to
     # stderr, which is the journal: a log file would outlive the uninstaller
@@ -101,7 +190,7 @@ start_sound() {
 
     # Five seconds is a guess, not a measurement, and it is bounded on purpose:
     # this delay is a black screen in front of a child.
-    if ! wait_for "$XDG_RUNTIME_DIR/pipewire-0" 5; then
+    if ! wait_for_socket "$XDG_RUNTIME_DIR/pipewire-0" 5; then
         log "SOUND UNAVAILABLE: pipewire did not create $XDG_RUNTIME_DIR/pipewire-0 within 5 seconds"
         stop_helpers
         return 0
@@ -112,7 +201,7 @@ start_sound() {
     /usr/bin/wireplumber -p main-embedded </dev/null >&2 2>&1 &
     HELPER_PIDS="$HELPER_PIDS $!"
 
-    if ! wait_for "$XDG_RUNTIME_DIR/pulse/native" 5; then
+    if ! wait_for_socket "$XDG_RUNTIME_DIR/pulse/native" 5; then
         # The helpers are left running: their own output is already in the
         # journal above, and it is the evidence for why this failed.
         log "SOUND UNAVAILABLE: no PulseAudio-protocol socket at $XDG_RUNTIME_DIR/pulse/native within 5 seconds of starting the sound server"

@@ -15,13 +15,15 @@ Status column is what has actually been watched, not what is believed.
 | 2 | What happens when the connection drops? | Never run |
 | 3 | What happens with no profile? | Failed as expected, VM, 2026-09-14 |
 | 4 | Does the off-switch give the machine back? | Never run |
-| 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed** — VM and Mac Mini, 2026-09-29 · 5b never run · 5c never run |
+| 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed on a first start** — VM and Mac Mini, 2026-09-29 · **5a failed on a restart**, VM, 2026-09-29, which is backlog item 5c · 5b never run · 5c never run |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
 | 7 | Does it survive a reboot? | Never run |
 | 8 | Where does this machine read the global certificate file? | Never run |
 | 9 | What does the screen show when the handshake is refused? | Never run |
 | 10 | Does running setup again leave a working terminal? | Never run |
 | 11 | Does the probe agree with the target? | Never run |
+| 12 | Does the sound guard tell a live sound server from a socket a dead session left? | **12a passed** — Fedora workstation, `bash` and `dash`, 2026-09-29 · 12a never run on the test VM · 12b never run |
+| 13 | Is `/run/user/<uid>` reused across a restart? | Never run |
 
 ---
 
@@ -350,3 +352,147 @@ Write down what a *different* kind of target says, too, if one is available —
 ("TLS handshake failed") are the two opposite mistakes the probe could make
 against a far end nobody has tried, and this test is the only thing that would
 find them.
+
+## Test 12 — does the sound guard tell a live sound server from a socket a dead session left?
+
+The guard in `start_sound` used to ask "does this file exist?", and on a restart
+a socket left by the session that had just ended answered yes with nothing
+listening behind it — so no server was started and the terminal was silent while
+the runner reported success (backlog item 5c). `socket_is_listening` in
+`encore-kiosk.sh` replaces that test. **Everything else about the sound path
+rests on these answers**, so they are measured rather than assumed.
+
+### 12a — the mechanism, off-target
+
+Runs anywhere with `python3` and `sh`. **No VM, no Pi, no service, nothing at
+risk** — the sockets are fabricated in a temporary directory.
+
+```sh
+D=$(mktemp -d)
+sleep 60 | python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(1); input()' "$D/live" &
+sleep 1
+: > "$D/plainfile"
+python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' "$D/dead"
+```
+
+**The `sleep 60 |` is not decoration.** The listener holds itself open by
+blocking on `input()`, so with no stdin it reads end-of-file at once, exits with
+an `EOFError` traceback, and leaves a socket with nothing behind it. That is
+indistinguishable from the bug under test — a `1` for `$D/live` — except for the
+traceback. It happened on the first run of this test on 2026-09-29. If `live`
+answers anything but `0`, check the listener is still alive before believing the
+mechanism is wrong.
+
+Then, with `socket_is_listening` in scope, take the exit status for each of the
+five cases — the fifth with `python3` hidden from `PATH`:
+
+```sh
+socket_is_listening "$D/live";      echo "live $?"
+socket_is_listening "$D/dead";      echo "dead $?"
+socket_is_listening "$D/plainfile"; echo "plainfile $?"
+socket_is_listening "$D/missing";   echo "missing $?"
+( PATH=/nonexistent; socket_is_listening "$D/dead"; echo "dead-no-python3 $?" )
+sh -n encore-kiosk.sh
+```
+
+**Pass** is all five of these, and `sh -n` silent:
+
+| Path | Required status | What a wrong answer proves |
+|---|---|---|
+| `$D/live` | `0` | the mechanism cannot see a listener, so the guard would start a second server beside a working one — the one way this change could break a machine that was fine |
+| `$D/dead` | `1` | the mechanism cannot see a dead socket, so item 5c is not fixed |
+| `$D/plainfile` | `1` or `3` | either is acceptable: a regular file at a socket path is not a listener. **`0` is a failure** |
+| `$D/missing` | `2` | absence is being confused with something else |
+| `$D/dead`, `python3` off `PATH` | `3` | the conservative branch is unreachable, and a machine with no `python3` would take a decision on no evidence |
+
+**Run it on the test VM as well as on a workstation, and write down which.** The
+development machine is Fedora, where `/bin/sh` is `bash`; the target is
+Debian-family, where it is `dash`, and the heredoc inside a shell function is
+exactly the construct that could differ. A pass on `bash` is not a pass on
+`dash`.
+
+**Passed on 2026-09-29, on the author's Fedora workstation**, with the function
+text extracted from `encore-kiosk.sh` itself rather than retyped: `live` → 0,
+`dead` → 1, `plainfile` → 1, `missing` → 2, `dead` with `python3` off `PATH` →
+3. Run twice, under `bash` 5.3.9 as `/bin/sh` and under `dash` 0.5.13.1, with
+the same five answers both times — so the heredoc-inside-a-function holds in
+`dash` the interpreter. `sh -n encore-kiosk.sh` and `dash -n encore-kiosk.sh`
+were both silent.
+
+The two callers were exercised on the same fabricated sockets, under both
+shells, and all of this held:
+
+| Call | Result |
+|---|---|
+| `claim_socket_path` on the live socket | logged `already listening … leaving it alone`, returned 1, **and the socket was still there afterwards** |
+| `claim_socket_path` on the dead socket | logged `was left by a session that has ended … removing it`, returned 0, and the socket was gone |
+| `claim_socket_path` on an absent path | returned 0 and logged nothing |
+| `claim_socket_path` with `python3` off `PATH` | logged `could not be established`, returned 2, and removed nothing |
+| `wait_for_socket` on the live socket, budget 5 | returned 0 in 0 seconds |
+| `wait_for_socket` on a dead socket, budget 3 | returned 1 after 3–4 seconds — **it did not return success instantly, which is the second half of item 5c** |
+| `wait_for_socket` on an absent path, budget 2 | returned 1 after 2 seconds |
+
+**What this does not cover:** `dash` on the target's own image, and every branch
+of `start_sound` above the function level. Those are 12b.
+
+### 12b — a restart gets its sound back, on the test VM
+
+The point of item 5c, and it cannot be proved off-target. Copy the runner to
+`/usr/local/bin/encore-kiosk.sh`, mode 755, then:
+
+```sh
+U=$(id -u encore)
+systemctl restart encore-kiosk.service
+sleep 10
+journalctl -t encore-kiosk -b --no-pager | grep -iE 'sound|rdpsnd|audin|pulse'
+systemctl restart encore-kiosk.service          # the case the bug lives in
+sleep 10
+journalctl -t encore-kiosk --since '-12s' --no-pager | grep -iE 'sound|rdpsnd|audin|pulse'
+ls -la /run/user/$U /run/user/$U/pulse
+pgrep -u encore -x -c pipewire; pgrep -u encore -x -c pipewire-pulse; pgrep -u encore -x -c wireplumber
+```
+
+**Pass:** the second restart logs `removing it` and then `sound: server ready`,
+exactly one of each helper is running, and there is no
+`rdpsnd: Loaded alsa backend`.
+
+Three failures that mean different things:
+
+- `already listening … leaving it alone` — something really was listening, so
+  the socket in the 2026-09-29 report was live and the diagnosis of item 5c is
+  wrong. **Stop and report.**
+- `SOUND UNAVAILABLE: … could not be established` — `python3` is missing on that
+  machine. Not a code fault; it is the branch designed for it, and it leaves the
+  machine no worse than before the fix.
+- **More than one of any helper** — the guard let a second server start beside a
+  first. **Stop immediately**; this is the harm the product named.
+
+**Never run.** Needs a person at the test VM.
+
+## Test 13 — is `/run/user/<uid>` reused across a restart?
+
+Not a blocker for item 5c — the guard tests liveness rather than lifetime, so it
+is correct either way. Run it because it decides whether *other* existence tests
+in this repository are suspect.
+
+```sh
+U=$(id -u encore)
+stat -c '%i %W %Z %n' /run/user/$U /run/user/$U/pulse /run/user/$U/pulse/native
+systemctl restart encore-kiosk.service
+sleep 8
+stat -c '%i %W %Z %n' /run/user/$U /run/user/$U/pulse /run/user/$U/pulse/native
+```
+
+- **Same inode and birth time for `/run/user/$U` across the restart** — the
+  runtime directory outlives the session. That explains the measured bug, and it
+  means no existence test anywhere in `start_sound` meant what it appeared to
+  mean.
+- **A different inode** — the directory was torn down and recreated, and the
+  socket seen ten seconds after a session ended came from somewhere this project
+  has not identified. **Stop and report.** The fix still stands; the bug's
+  mechanism would be unexplained, which is worth knowing before more is built on
+  it.
+- **`stat` says a path does not exist** — record which of the three, and when,
+  and carry on. That is a fact about timing, not a failure.
+
+**Never run.** Needs a person at the test VM.

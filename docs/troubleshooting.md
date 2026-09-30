@@ -285,6 +285,19 @@ journalctl -t encore-kiosk -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
 | `no PulseAudio-protocol socket` | the server started and did not finish coming up. The helpers' own complaints are above the line, in the same journal. |
 | `has no output device` | the server is running and the machine presented no sound output at all. Suspect the hardware or its driver. |
 | `XDG_RUNTIME_DIR is not set` | the session did not get a runtime directory. That contradicts how the unit is understood to work and is worth reporting rather than working around. |
+| `whether a sound server is listening … could not be established` | a socket is there and the check could not ask it anything, so no server was started beside one that may be working. Almost always a missing `python3`: run `command -v python3`. Without it, a restarted terminal is silent — which is what it did before this check existed, now said out loud. |
+| `a PipeWire server is already listening … but nothing is listening on … pulse/native` | half a sound server, started by something that is not this capability. The helpers were deliberately not started beside it. Nobody has ever seen this state; it is worth reporting with `pgrep -u encore -a pipewire` and `ls -la /run/user/$(id -u encore)`. |
+| `a dead socket … could not be removed` | the runtime directory is not writable by the terminal's own identity, which should be impossible. Check `ls -la /run/user/$(id -u encore)/pulse`. |
+
+**One `sound:` line is informational and not a fault**, though it reads like
+one: `the socket at … was left by a session that has ended and nothing is
+listening on it; removing it`. It means the terminal restarted, found the
+previous session's socket, established that nothing was behind it, and cleared
+the way. Expect it on every restart, and expect `sound: server ready` right
+after. Before backlog item 5c that path reported success and started no server,
+so the terminal was silent while the journal looked healthy — if you see the
+removal line **without** `server ready` following it, that is the fault, not the
+removal.
 
 **Expected noise, and it is not a fault.** With no session message bus — which
 is deliberate (R-16, D-012) — the sound server complains on every start about
