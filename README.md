@@ -88,30 +88,10 @@ Your desktop stays until you reboot. (`systemctl isolate encore-kiosk.target`
 is the one that switches over immediately, tearing down the desktop under you.
 It is useful for a quick try, but it does not reproduce boot conditions.)
 
-### Then set up the other machine
+### Then tune the other machine
 
-**[`docs/other-machine.md`](docs/other-machine.md)** — three things to do on the
-machine your terminals connect to. None of them is part of Encore, and none runs
-on a terminal, but converting a machine creates all three and none announces
-itself:
-
-1. Take the power controls away from the session, so nobody at a terminal
-   switches off the machine every terminal depends on.
-2. Stop the software updater asking for a password nobody there can answer.
-3. **Check that machine can encode video.** Without it each terminal costs
-   about 130 Mbps instead of a few — and nothing tells you which you have.
-
-### What the installer actually did
-
-**Read [`encore-install.sh`](encore-install.sh).** It is 239 lines, a quarter of
-them comments, and it explains why at every step that has gone wrong before.
-
-There is deliberately no second, prose copy of those steps. One existed and
-drifted from the script twice in three weeks — it lost the sound packages and
-the directory-ownership fix, so following it produced a silent terminal that
-could not write into its own home. **A description of a script is a second thing
-to keep true, and this project's recurring failure is records that read correct
-while being wrong.**
+Read **[`docs/other-machine.md`](docs/other-machine.md)** for recommendations on
+how to tune the machine your terminals connect to.
 
 ---
 
