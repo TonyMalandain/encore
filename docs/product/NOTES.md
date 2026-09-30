@@ -737,3 +737,11 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Observed cost:** on the machine where this was seen, the fallback chain ended with no working sound at all, while the runner's own message reported success. That is precisely the failure shape the audio markers were written to prevent, produced by the marker's own branch.
 - **Source:** observed by the author on the test machine, 2026-09-29
 - **Touches:** solution.md R-12, BACKLOG.md item 5, docs/tests.md Test 5a
+
+## 2026-09-29 — a fourth thing marked unknown that was cheap to look up
+- **Kind:** question
+- **Fact:** Whether Raspberry Pi OS carries Python was recorded as unmeasured and handed to the author as a command to run on a Pi. It is public knowledge: Python 3 ships in Raspberry Pi OS including the minimal image, as a dependency of core system tooling, and recent releases are Python-3-only. The author pointed this out.
+- **Why it is worth recording as a pattern rather than a slip:** this is the fourth time this week something was treated as unknowable-from-here when it was documented or one command away. The journal was declared broken for three weeks and was answered by asking a different question. The audio cause was reasoned about twice and settled by five minutes on a machine. The power-off risk was alarmed about and settled by one measurement. Each time the expensive path was taken first.
+- **The distinction that keeps being missed:** "nobody here has measured it" and "nobody knows it" are different statements, and only the first is usually true. Before something goes into this record as unmeasured, the cheaper question is whether it is already established somewhere — in public documentation, in a shipped file, or by one command.
+- **Source:** the author, 2026-09-29
+- **Touches:** BACKLOG.md item 5c, docs/plans/sound-guard-liveness.md
