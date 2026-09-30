@@ -745,3 +745,23 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **The distinction that keeps being missed:** "nobody here has measured it" and "nobody knows it" are different statements, and only the first is usually true. Before something goes into this record as unmeasured, the cheaper question is whether it is already established somewhere — in public documentation, in a shipped file, or by one command.
 - **Source:** the author, 2026-09-29
 - **Touches:** BACKLOG.md item 5c, docs/plans/sound-guard-liveness.md
+
+## 2026-09-30 — both fixes observed working, and one of them proved a thing nobody had measured
+- **Kind:** solution
+- **Profiles:** administrator, person at the terminal
+- **Fact:** Observed on the test machine. The capability's log is now readable under one name, and that name reaches **every** descendant — the compositor, the runner, the graphics compatibility layer and the remote-desktop client all appear under it. That was the one part of the change nobody could test off-target and it holds.
+- **The sound guard works, and on the exact path that was broken.** On two consecutive fast restarts it found **both** sockets left behind by the session that had just ended, said so in plain words, removed them, started a server and reported five output devices. The message it prints is now true where the old one was a lie.
+- **The second instance of the bug was real, not theoretical.** The runner's wait for the sound server had the same existence-only flaw, and it was found by the engineer rather than by the measurement. On this restart **that socket was stale too** — so it would have fired. Fixing both in one change was not tidiness.
+- **And it answered a question that had its own test waiting.** For sockets from an ended session to be sitting there, the runtime directory must outlive the session. It does. **So no existence test in that function ever meant what it appeared to mean**, and a comment in the runner still claims the opposite — that the directory exists only while a session does. That comment is now known wrong and is a handoff.
+- **The input channel came up on the intended sound system** for the first time, where it previously failed and fell back to a dead end. Nobody has spoken into a terminal, so R-19 is not delivered — but the channel loading is the first evidence it can be.
+- **Source:** observed by the author on the test machine, 2026-09-30
+- **Touches:** solution.md R-12 and R-19, docs/tests.md Tests 5, 12, 13, BACKLOG.md items 5b and 5c
+
+## 2026-09-30 — the delay before a session appears is mostly the far machine redirecting
+- **Kind:** problem
+- **Profiles:** person at the terminal
+- **Fact:** Measured from the capability's own log on the test machine. The screen is ready in a third of a second and the client starts within three. Then the machine being connected to **accepts the connection and redirects it elsewhere**, and everything negotiates a second time — the sound channels can be watched loading twice. That round trip is about five seconds of the blank screen, and it is not this product's code.
+- **A caveat that matters for anyone reading these numbers:** the test machine has no graphics hardware and was rendering in software. The figures are a worst case and should not be quoted as typical.
+- **Why it is worth recording rather than fixing:** the redirection belongs to the machine being connected to, which is out of scope (D-002). What is in scope is that a child watches a blank screen for the duration and nothing tells them anything is happening — the same question already open about what a terminal shows while it waits.
+- **Source:** measured by the author on the test machine, 2026-09-30
+- **Touches:** solution.md R-6 and R-18, decisions.md D-002, BACKLOG.md item 11

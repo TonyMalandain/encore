@@ -15,15 +15,15 @@ Status column is what has actually been watched, not what is believed.
 | 2 | What happens when the connection drops? | Never run |
 | 3 | What happens with no profile? | Failed as expected, VM, 2026-09-14 |
 | 4 | Does the off-switch give the machine back? | Never run |
-| 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed on a first start** — VM and Mac Mini, 2026-09-29 · **5a failed on a restart**, VM, 2026-09-29, which is backlog item 5c · 5b never run · 5c never run |
+| 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed, including across restarts** — VM and Mac Mini, 2026-09-29; the restart failure was item 5c and is fixed and observed fixed, VM, 2026-09-30 · **5b channel loads** — the input channel came up on the intended sound system, VM, 2026-09-30; nobody has spoken into it · 5c never run |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
 | 7 | Does it survive a reboot? | Never run |
 | 8 | Where does this machine read the global certificate file? | Never run |
 | 9 | What does the screen show when the handshake is refused? | Never run |
 | 10 | Does running setup again leave a working terminal? | Never run |
 | 11 | Does the probe agree with the target? | Never run |
-| 12 | Does the sound guard tell a live sound server from a socket a dead session left? | **12a passed** — Fedora workstation, `bash` and `dash`, 2026-09-29 · 12a never run on the test VM · 12b never run |
-| 13 | Is `/run/user/<uid>` reused across a restart? | Never run |
+| 12 | Does the sound guard tell a live sound server from a socket a dead session left? | **12a passed** — Fedora workstation, `bash` and `dash`, 2026-09-29 · **12b passed** — VM, 2026-09-30, twice on consecutive fast restarts: both sockets found stale, both removed, server started, five output devices · 12a never run on the test VM, and no longer needs to be |
+| 13 | Is `/run/user/<uid>` reused across a restart? | **Answered: yes** — VM, 2026-09-30, by 12b rather than by this procedure. Sockets from an ended session were still present, so the directory outlives the session and no existence test in `start_sound` ever meant what it appeared to |
 
 ---
 
