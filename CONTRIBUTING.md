@@ -26,19 +26,19 @@ here are defences against that one shape.
 
 | Where | What |
 |---|---|
-| `docs/product/` | What the product is for, who it serves, what was decided |
-| `docs/product/problem.md` | The problem, in prose |
-| `docs/product/solution.md` | The envisioned solution and its requirements, `R-n` |
-| `docs/product/decisions.md` | Closed decisions, `D-NNN` |
-| `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
-| `docs/architecture/` | How it is built, and why it is shaped this way |
-| `docs/architecture/adr/` | Architecture decisions, `ADR-NNNN` |
-| `docs/architecture/debt.md` | Everything known to be wrong, worst first, `D-An` |
-| `docs/tests.md` | What to run on a converted machine, and what has been watched |
-| `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
-| `docs/other-machine.md` | What to set up on the machine terminals connect to |
-| `BACKLOG.md` | What order it gets fixed in — **and nothing else** |
-| `README.md` | For somebody deciding whether to install this |
+| [`docs/product/`](docs/product/) | What the product is for, who it serves, what was decided |
+| [`docs/product/problem.md`](docs/product/problem.md) | The problem, in prose |
+| [`docs/product/solution.md`](docs/product/solution.md) | The envisioned solution and its requirements, `R-n` |
+| [`docs/product/decisions.md`](docs/product/decisions.md) | Closed decisions, `D-NNN` |
+| [`docs/product/alternatives.md`](docs/product/alternatives.md) | Why not one of the existing thin-client projects |
+| [`docs/architecture/`](docs/architecture/) | How it is built, and why it is shaped this way |
+| [`docs/architecture/adr/`](docs/architecture/adr/) | Architecture decisions, `ADR-NNNN` |
+| [`docs/architecture/debt.md`](docs/architecture/debt.md) | Everything known to be wrong, worst first, `D-An` |
+| [`docs/tests.md`](docs/tests.md) | What to run on a converted machine, and what has been watched |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Every failure seen so far, and what caused it |
+| [`docs/other-machine.md`](docs/other-machine.md) | What to set up on the machine terminals connect to |
+| [`BACKLOG.md`](BACKLOG.md) | What order it gets fixed in — **and nothing else** |
+| [`README.md`](README.md) | For somebody deciding whether to install this |
 
 **`BACKLOG.md` is not product documentation.** It says order. What the product
 is and what was decided live in `docs/product/` and are referenced by ID from

@@ -155,8 +155,9 @@ systemctl get-default
 
 ## Known issues
 
-Detail for every one of these is in `docs/architecture/debt.md`, and the order
-they get fixed in is `BACKLOG.md`.
+Detail for every one of these is in
+[`docs/architecture/debt.md`](docs/architecture/debt.md), and the order they get
+fixed in is [`BACKLOG.md`](BACKLOG.md).
 
 1. **A terminal that has stopped working reports itself healthy.** Watched on
    2026-09-23: the connection failed, a dialog went up on the terminal's
@@ -194,14 +195,14 @@ they get fixed in is `BACKLOG.md`.
     the terminal second for second — on the one machine measured, an unused
     second network stack cost two minutes every boot. Not a fault in this
     software, and it is not caused by the monitor being switched off.
-    `docs/troubleshooting.md` finds the cause on your machine, under *The
-    session takes a very long time to appear at boot*.
+    [**The session takes a very long time to appear at boot**](docs/troubleshooting.md#the-session-takes-a-very-long-time-to-appear-at-boot)
+    finds the cause on your machine.
 
 ---
 
 ## Working on this
 
-**Something not working?** `docs/troubleshooting.md` lists every failure seen so
+**Something not working?** [`docs/troubleshooting.md`](docs/troubleshooting.md) lists every failure seen so
 far, with the check that identifies it. Nearly all of them were silent — no
 error, no log line — so the order of the checks matters.
 
