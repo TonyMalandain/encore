@@ -101,6 +101,15 @@ itself:
 3. **Check that machine can encode video.** Without it each terminal costs
    about 130 Mbps instead of a few — and nothing tells you which you have.
 
+### What the installer did
+
+**[`docs/install-by-hand.md`](docs/install-by-hand.md)** — every step
+`encore-install.sh` takes, written out, with what has gone wrong at each one.
+Read it if an install failed halfway and you need to know what it was trying to
+do, or if you would rather read the steps than the shell before trusting this on
+your machine. It also has the by-hand removal sequence, for a machine that no
+longer has the repository on it.
+
 ---
 
 ## Uninstall
@@ -131,160 +140,8 @@ they are ordinary software and removing them could break something else.
 
 Reboot afterwards to come back up as an ordinary machine.
 
-If the repository is no longer on the machine, the manual sequence is in
-*Undoing it by hand* below.
-
----
-
-## What the installer does, step by step
-
-`encore-install.sh` does all of this for you. It is written out because a lab
-procedure has to be readable when something fails, and because every one of
-these steps has bitten at least once.
-
-Everything below runs as root on the machine being converted.
-
-### 1. Packages
-
-```sh
-apt update
-apt install remmina remmina-plugin-rdp cage kbd
-```
-
-`kbd` provides `chvt`, which the unit uses to bring the kiosk's console to the
-front. Without it the service starts and nothing appears.
-
-### 2. The user the terminal runs as
-
-```sh
-useradd --system --create-home --home-dir /var/lib/encore \
-        --shell /usr/sbin/nologin encore
-usermod -aG video,input,render encore
-```
-
-> **One note.** Nobody has checked which of those group memberships are
-> actually needed — narrow them once it works (item 7).
-
-### 3. Directories
-
-```sh
-install -d -o encore -g encore -m 700 /var/lib/encore/.local/share/remmina
-install -d -o encore -g encore -m 700 /var/lib/encore/.config/remmina
-```
-
-### 4. The connection profile
-
-Start from the template in this repository, which carries no host, no account
-and no password:
-
-```sh
-install -o encore -g encore -m 600 encore-kiosk.remmina.template \
-        /var/lib/encore/.local/share/remmina/encore-kiosk.remmina
-```
-
-Edit the two `CHANGEME` lines — `server` and `username`. The `name` field is
-prefilled: it is the connection's label inside the client and nobody at the
-terminal ever sees it.
-
-Confirm nothing was missed. This must print `0`:
-
-```sh
-grep -c CHANGEME /var/lib/encore/.local/share/remmina/encore-kiosk.remmina
-```
-
-**Put exactly one profile in that directory.** The runner takes the first file
-it finds in no defined order, so two profiles mean an unpredictable target.
-
-### 5. The password, and the key that protects it
-
-```sh
- systemd-run --pty --uid=encore \
-  -p InaccessiblePaths=/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so \
-  -E HOME=/var/lib/encore \
-  remmina --update-profile /var/lib/encore/.local/share/remmina/encore-kiosk.remmina \
-          --set-option password='<password>'
-```
-
-Only the password is set here. `server` and `username` were set in the file at
-step 4 and survive this command untouched — setting the username again on the
-command line would mean two sources for one value, and the command line wins
-silently when they disagree.
-
-Note the leading space, which keeps the password out of your shell history.
-
-> **The leading space is not enough on its own.** It protects Bash history and
-> nothing else. If you reach for `sudo` rather than already being root, `sudo`
-> writes the whole command line to the auth log; and `systemd-run` creates a
-> transient unit whose command line systemd records in the journal. Check both
-> afterwards, and rotate the password on your main machine if either matches:
->
-> ```sh
-> grep -c 'set-option' /var/log/auth.log 2>/dev/null
-> journalctl --no-pager -q | grep -c 'set-option'
-> ```
-
-Three things about this step, all learned the hard way:
-
-- **The keyring plugin must be out of reach.** If Remmina can see
-  `remmina-plugin-secret.so` it insists on a keyring, and an unattended
-  terminal has nobody to unlock one. The `InaccessiblePaths` above hides it for
-  that one command; the service unit does the same permanently. Check the path
-  matches your architecture.
-- **A `remmina.pref` must exist for the password to be readable**, because the
-  key lives in it. Confirm afterwards:
-  ```sh
-  grep '^secret=' /var/lib/encore/.config/remmina/remmina.pref
-  ```
-- **The key is never shipped and never shared.** It is created on the terminal
-  during this step, confirmed on 2026-09-23. Nothing secret has to be copied
-  between machines, and every terminal ends up with its own key rather than all
-  of them sharing one.
-
-> **Stated plainly:** the stored password is recoverable by anyone who can read
-> these two files, because the key sits beside the secret. Use a connection
-> account that can do nothing but reach a login screen.
-
-### 6. The files from this repository
-
-```sh
-install -m 755 encore-kiosk.sh /usr/local/bin/encore-kiosk.sh
-install -m 644 encore-kiosk.service encore-kiosk.target /etc/systemd/system/
-
-systemctl daemon-reload
-systemctl enable encore-kiosk.service
-```
-
-### 7. Switch it on
-
-```sh
-systemctl isolate encore-kiosk.target
-```
-
-Or permanently, from the next boot:
-
-```sh
-systemctl set-default encore-kiosk.target
-reboot
-```
-
-### 8. Undoing it by hand
-
-`encore-uninstall.sh` does all of this. Reach the machine over SSH, or from a
-text console — `Ctrl+Alt+F1` through `F6`, whichever one answers on your
-machine. The screen itself belongs to the session.
-
-```sh
-systemctl set-default graphical.target   # or multi-user.target
-systemctl disable encore-kiosk.service
-rm /etc/systemd/system/encore-kiosk.service /etc/systemd/system/encore-kiosk.target
-rm /usr/local/bin/encore-kiosk.sh
-systemctl daemon-reload
-userdel -r encore          # deletes the profile, the key and the stored password
-rm -rf /var/lib/encore
-reboot
-```
-
-Confirming that this really gives the machine back is Test 4.
+If the repository is no longer on the machine, the sequence to run by hand is in
+[`docs/install-by-hand.md`](docs/install-by-hand.md), under *Undoing it by hand*.
 
 ---
 
@@ -378,6 +235,7 @@ they get fixed in is `BACKLOG.md`.
 | `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
 | `docs/architecture/` | How it is built, and why it is shaped this way |
 | `docs/architecture/debt.md` | Everything known to be wrong, worst first |
+| `docs/install-by-hand.md` | Every step the installer takes, and what goes wrong at each |
 | `docs/other-machine.md` | What to set up on the machine terminals connect to |
 | `docs/tests.md` | What to run on a converted machine, and what has been watched |
 | `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
