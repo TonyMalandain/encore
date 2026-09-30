@@ -49,12 +49,16 @@ the journal on every start.
 For whoever has to diagnose a silent terminal: one command answers it.
 
 ```sh
-journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+journalctl -t encore-kiosk -b | grep 'SOUND UNAVAILABLE'
 ```
 
 No output means the sound path came up. Any output is the reason it did not,
-in one line. **That command is a deliverable of this ticket, not a
-convenience** — it is the first piece of this project's oldest defect (a
+in one line. **It is `-t encore-kiosk` and never `-u encore-kiosk.service`**:
+`PAMName=login` moves these processes out of the unit's cgroup, so asking by
+unit matches nothing the runner wrote — and it does so silently, which makes a
+`-u` query piped into `grep` read as a pass on every machine. Every query in
+this document was corrected to `-t` on 2026-09-29. **That command is a
+deliverable of this ticket, not a convenience** — it is the first piece of this project's oldest defect (a
 terminal that has stopped working reports itself healthy, `README.md` known
 issue 1) to be repaid anywhere.
 
@@ -430,7 +434,7 @@ Apply the new `encore-kiosk.sh` by hand on the test VM (copy it to
 ```sh
 systemctl restart encore-kiosk.service
 sleep 8
-journalctl -u encore-kiosk.service -b --no-pager | tail -60
+journalctl -t encore-kiosk -b --no-pager | tail -60
 U=$(id -u encore); ls -la /run/user/$U; ls -la /run/user/$U/pulse
 ```
 
@@ -467,7 +471,7 @@ for i in 1 2 3 4 5; do
     systemctl restart encore-kiosk.service
     sleep 8
     printf 'run %s: unavailable=%s pipewire=%s pulse=%s wireplumber=%s\n' "$i" \
-        "$(journalctl -u encore-kiosk.service --since '-8s' --no-pager | grep -c 'SOUND UNAVAILABLE')" \
+        "$(journalctl -t encore-kiosk --since '-8s' --no-pager | grep -c 'SOUND UNAVAILABLE')" \
         "$(pgrep -u encore -x -c pipewire || echo 0)" \
         "$(pgrep -u encore -x -c pipewire-pulse || echo 0)" \
         "$(pgrep -u encore -x -c wireplumber || echo 0)"
@@ -495,7 +499,7 @@ sed -i 's/^sound=.*/sound=local/' /var/lib/encore/.local/share/remmina/*.remmina
 sed -i 's/^start_sound$/: # start_sound disabled for P1.3/' /usr/local/bin/encore-kiosk.sh
 systemctl restart encore-kiosk.service
 sleep 15
-journalctl -u encore-kiosk.service -b --no-pager | tail -40
+journalctl -t encore-kiosk -b --no-pager | tail -40
 ```
 
 - **The remote login screen appears anyway** → a sound failure costs sound and
@@ -517,7 +521,7 @@ With the runner restored and `sound=local` on the live profile:
 
 ```sh
 systemctl restart encore-kiosk.service
-journalctl -u encore-kiosk.service -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
+journalctl -t encore-kiosk -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
 ```
 
 Then play something inside the remote session.
