@@ -36,17 +36,7 @@ systemctl --version | head -1
 
 254 or higher and you qualify, whatever the distribution.
 
-**Sound has a second, softer requirement: wireplumber 0.5 or newer.**
-
-```sh
-wireplumber --version
-```
-
-Below 0.5 the machine still qualifies and the terminal still works — it is
-silent. The install says so once, and every start says so in the journal.
-Ubuntu 24.04 LTS ships 0.4.17, which is why the table above asks for 26.04.
-
-**Below it, nothing appears to be wrong, which is why this is stated so
+**Below 254, nothing appears to be wrong, which is why this is stated so
 plainly.** The terminal installs, connects, and looks fine. But when the
 connection drops it retries at a flat interval instead of backing off
 progressively, because the settings that do that arrived in systemd 254 and
@@ -56,6 +46,21 @@ recovers differently from everything written here, and nothing would tell you.
 This is the one requirement that rules out a lot of otherwise fine hardware.
 Raspberry Pi OS only crossed it in October 2025, so a Pi imaged before then
 needs updating first.
+
+**Sound needs wireplumber 0.5 or newer.** This one is softer — miss it and the
+machine still qualifies:
+
+```sh
+wireplumber --version
+```
+
+Below 0.5 the terminal installs, connects and works exactly as described. It is
+**silent**, and it says so at install and on every start, so this is the one
+requirement you will be told about rather than left to discover. Ubuntu 24.04
+LTS ships 0.4.17, which is why the table above asks for 26.04.
+
+If a terminal that should have sound does not, `docs/troubleshooting.md` has the
+one command that says why, under *A terminal with no sound*.
 
 No particular hardware is required — but "has a working Wayland driver" is the
 part that actually decides it, and that has not been tested on anything old.
@@ -559,13 +564,7 @@ they get fixed in is `BACKLOG.md`.
    switching to a text console and back leaves the terminal's session without
    it. Nothing on the screen says why. Restarting the terminal brings sound
    back. This is a known and accepted cost, not a fault to report.
-10. **Sound only works if the machine's sound software is new enough** —
-    wireplumber 0.5 or newer, which is in the qualifying table above. Below it
-    the terminal installs, connects and works exactly as described; it is simply
-    silent, and says so at install and on every start. `docs/troubleshooting.md`
-    has the one command that says why a given terminal is silent, under *A
-    terminal with no sound*.
-11. **A terminal can take minutes to show its session at boot.** It is waiting
+10. **A terminal can take minutes to show its session at boot.** It is waiting
     for something else on your machine, not failing. `encore-kiosk.service`
     starts after the network is up, so anything slow earlier in startup delays
     the terminal second for second — on the one machine measured, an unused
