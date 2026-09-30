@@ -14,82 +14,46 @@ front of anybody.
 
 ## Does your machine qualify?
 
-| Needs | Why |
-|---|---|
-| **Raspberry Pi OS "trixie"** (the October 2025 release) **or newer** | Earlier Pi OS releases are missing something the recovery behaviour needs — see below |
-| …or **Ubuntu 26.04 or newer** | The only Ubuntu this has been run on. Older ones also ship a sound stack too old for the audio work in progress |
-| …or **Debian 13 "trixie" or newer** | Debian 12 is too old for the same reason |
-| **Wayland** | `cage` is a Wayland compositor; there is no X11 path |
-| **A current release of the packages below** | No compatibility handling for older ones |
-| **SSH running, and you can already log in** | Your way back in once the screen belongs to the remote session — and what `scp` needs, if you take the copy route |
-| **`git`**, or a second machine with `scp` | The install is a clone; if the old machine cannot reach GitHub, the files are copied to it instead |
+On the machine you are converting:
 
-All three are apt-family; other package managers are not supported.
+- **An apt-family Linux.** Raspberry Pi OS "trixie" (October 2025), Ubuntu
+  26.04, or Debian 13 — or newer. Other package managers are not supported.
+- **systemd 254 or newer** — `systemctl --version | head -1`
+- **Wayland**
+- **wireplumber 0.5 or newer** — `wireplumber --version`. Sound only; below it
+  the terminal works and is silent.
+- **An SSH server you can already log into**
+- **`git`** — or a second machine with `scp`
 
-**What those versions are really about: systemd 254 or newer.** That is the
-actual requirement, and the releases above are simply the ones that carry it.
-If your machine is something else, check directly:
+And separately:
 
-```sh
-systemctl --version | head -1
-```
+- **A second machine that already accepts RDP connections.** This project does
+  nothing to it and makes no claims about it.
 
-254 or higher and you qualify, whatever the distribution.
+`docs/requirements.md` says why each of these, and what breaks without it.
+**Read the systemd one before converting a Raspberry Pi**: below 254 the
+terminal installs, connects and looks fine while recovering differently from
+everything described here, and nothing tells you.
 
-**Below 254, nothing appears to be wrong, which is why this is stated so
-plainly.** The terminal installs, connects, and looks fine. But when the
-connection drops it retries at a flat interval instead of backing off
-progressively, because the settings that do that arrived in systemd 254 and
-older versions ignore them without complaining. You would have a terminal that
-recovers differently from everything written here, and nothing would tell you.
+---
 
-This is the one requirement that rules out a lot of otherwise fine hardware.
-Raspberry Pi OS only crossed it in October 2025, so a Pi imaged before then
-needs updating first.
+## Install
 
-**Sound needs wireplumber 0.5 or newer.** This one is softer — miss it and the
-machine still qualifies:
-
-```sh
-wireplumber --version
-```
-
-Below 0.5 the terminal installs, connects and works exactly as described. It is
-**silent**, and it says so at install and on every start, so this is the one
-requirement you will be told about rather than left to discover. Ubuntu 24.04
-LTS ships 0.4.17, which is why the table above asks for 26.04.
-
-If a terminal that should have sound does not, `docs/troubleshooting.md` has the
-one command that says why, under *A terminal with no sound*.
-
-No particular hardware is required — but "has a working Wayland driver" is the
-part that actually decides it, and that has not been tested on anything old.
-
-**Set up SSH before you convert the machine, not after.** Once the capability
-is on, the screen shows the remote session and nothing else — there is no
-desktop, no terminal window, no menu. If the service then fails to start, or
-the connection never comes up, SSH is how you get in to look. Check it from
-another machine first:
+**Set up SSH first, not after.** Once the terminal is on, its screen shows the
+remote session and nothing else — no desktop, no terminal window, no menu. If
+the service fails to start, SSH is how you get in to look. Check from another
+machine:
 
 ```sh
 ssh <user>@<terminal> true && echo "reachable"
 ```
 
-A text console is still there as a last resort — `Ctrl+Alt+F1` through `F6`,
-and which of them gives you a login prompt varies by machine — but it means
-being physically at the machine and knowing to reach for it, which is a lot to
-ask of whoever ends up living with the terminal.
+A text console remains as a last resort — `Ctrl+Alt+F1` through `F6`, and which
+one answers varies by machine — but it means being at the machine and knowing to
+reach for it, which is a lot to ask of whoever lives with the terminal.
 
-**You also need a second machine that already accepts RDP connections.** This
-project does nothing to that machine and makes no claims about it.
-
-**For a VM:** give it virtio-gpu, or Wayland will not start and you will debug
-the wrong problem. Keep SSH access — when the kiosk wedges, the screen is the
-one thing you cannot use.
-
----
-
-## Install
+**On a VM:** give it virtio-gpu, or Wayland will not start and you will debug
+the wrong problem.
 
 On the old machine, as root:
 
@@ -583,6 +547,7 @@ they get fixed in is `BACKLOG.md`.
 | `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
 | `docs/architecture/` | How it is built, and why it is shaped this way |
 | `docs/architecture/debt.md` | Everything known to be wrong, worst first |
+| `docs/requirements.md` | What a machine must have, why, and what breaks without it |
 | `docs/tests.md` | What to run on a converted machine, and what has been watched |
 | `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
 | `BACKLOG.md` | What order it gets fixed in |
