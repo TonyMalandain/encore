@@ -681,3 +681,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **One thing that is the author's network rather than the product's:** the terminal's traffic was leaving over wireless while an idle gigabit wired port sat on the same machine. That is a household wiring question, not a product defect, but it bears directly on how many terminals this house supports.
 - **Source:** measured on the machine being connected to, 2026-09-29, and confirmed independently
 - **Touches:** problem.md, solution.md R-1 and R-2, decisions.md D-016, README.md, BACKLOG.md item 13b
+
+## 2026-09-29 — the machine serving the terminals is also somebody's desktop
+- **Kind:** problem
+- **Profiles:** person at the terminal, owner of the machine being connected to
+- **Fact:** Measured while the terminal was drawing 130 megabits per second, the same machine was also running a browser, an editor, a game download and a working session — several tens of megabits of its own, competing with the child's terminal for the same network and the same machine.
+- **Why it matters:** the record talks about "the machine being connected to" as though it were a server. It is not. It is an adult's computer that happens to also serve terminals, and that is the normal case for the household the product is written for — nobody buys a server to reuse old laptops. So **the capacity available to a terminal is not a property of the household's network, it is whatever the adult is not using at that moment.** A terminal that feels broken in a bedroom may simply mean somebody downstairs started a download, and the child has no way to know that, no way to see it, and nothing to tell them. It is the same shape as the power controls: the cause lives on a machine the product declares out of scope, and the confusion lands on a child in another room.
+- **Why it is not a defect to fix:** nothing the terminal can do would help, and the product should not start managing the far machine (D-002, D-015). What it changes is what the record should be honest about — the promise of two or three terminals rests on a machine whose spare capacity nobody has characterised, and on a household understanding that the two compete.
+- **Source:** measured on the machine being connected to, 2026-09-29
+- **Touches:** problem.md, users.md, decisions.md D-002 and D-016, README.md
