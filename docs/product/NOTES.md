@@ -718,3 +718,22 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why it matters to anyone but the author:** this is not a fault in the product and not a fault in the terminal. It is a package missing on a machine the product declares out of scope (D-002), and it changes what a terminal costs by roughly two orders of magnitude. An adopter on the same distribution gets the expensive version, silently, and would have no reason to look — nothing in the product, the terminal, or any log the adopter reads says the word "encoder". It belongs in the README beside the other far-machine recipes.
 - **Source:** the author, 2026-09-29; the driver state, the restart order and the absence of the error confirmed directly
 - **Touches:** README.md, decisions.md D-002 and D-016, BACKLOG.md item 13c
+
+## 2026-09-29 — the journal was never blind; three days of "silent failure" was a wrong query
+- **Kind:** solution
+- **Profiles:** administrator
+- **Fact:** Observed on the test machine. Asking the journal for the capability's unit returns the startup system's own lines and nothing else. Asking it for the compositor's process name returns **everything** — the compositor, the remote-desktop client, and the runner's own messages. The capability sets a login-session name, which places its processes in a login session's own group rather than the service's, so a query by unit never matched them.
+- **Why this matters more than the fix:** the record has treated this as the product's oldest and worst defect — things reporting healthy while not working — and built arguments on top of it. An architecture decision names the journal as the fallback signal when the unit's state cannot carry one, and that fallback was written off as observed-failing. **It was working the whole time.** Two of today's tickets exist partly because nobody could read a running terminal, and one of them can now be answered by asking the question correctly.
+- **The lesson, which is the same one three times over:** every wrong answer this week came from reasoning about configuration instead of measuring the machine. Three theories were offered for this — output never produced, output buffered and killed, output filed elsewhere — and the third was right, but it was the cheapest to test and was tested last.
+- **Source:** observed by the author on the test machine, 2026-09-29
+- **Touches:** BACKLOG.md items 8c, 9, 12, 13; docs/troubleshooting.md; docs/architecture ADR on recovery
+
+## 2026-09-29 — the guard meant to protect a working machine breaks a restarting one
+- **Kind:** problem
+- **Profiles:** person at the terminal
+- **Fact:** On restart, the runner found a sound socket left behind by the session that had just ended, decided a sound server was already running, and started none. The remote-desktop client then failed to use that dead socket, fell back to a second sound system, and failed there too. **A terminal that restarts has no sound**, and the only sign is a line saying everything is fine.
+- **Why the check exists, and why it is still right to have one:** the platforms differ, and on one of them a sound server may already be running. Starting a second beside a working one was named as the single way this change could break a machine that was fine. That reasoning holds.
+- **What is wrong is the test, not the intent:** the presence of a socket file was treated as proof that something is listening. It is not. A restart tears the session down faster than the socket is cleaned up, so the stale file outlives the server it belonged to — and restarts are the normal case here, not the exception, because a dropped connection causes one.
+- **Observed cost:** on the machine where this was seen, the fallback chain ended with no working sound at all, while the runner's own message reported success. That is precisely the failure shape the audio markers were written to prevent, produced by the marker's own branch.
+- **Source:** observed by the author on the test machine, 2026-09-29
+- **Touches:** solution.md R-12, BACKLOG.md item 5, docs/tests.md Test 5a
