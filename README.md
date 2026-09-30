@@ -240,6 +240,69 @@ refresh. No password box means it worked.
 If you use parental controls on that machine, note that this rule does not touch
 them, and the action that overrides them stays locked by the system's own rule.
 
+### Check that machine can encode video — this one is worth a hundredfold
+
+**A terminal's cost to your network is decided by the machine at the other end,
+not by the terminal.** A remote session is a video stream. If the serving machine
+can compress it in hardware, a busy terminal costs a few megabits per second. If
+it cannot, the session falls back to sending pictures of the screen, and the same
+terminal costs **about 130 megabits per second** — measured here on 2026-09-29.
+
+That matters because a household is expected to run two or three terminals. At
+the cheap rate they fit on anything. At the expensive rate three of them want
+around 400 megabits per second at once, which a cable carries and household
+wireless usually does not — and the machines being reused tend to end up in
+bedrooms, which is where the wireless is.
+
+**Nothing tells you which one you have.** Not the terminal, not the installer, not
+any log an adopter would think to read. The word "encoder" appears nowhere.
+
+Check it. On the machine being connected to:
+
+```sh
+vainfo | grep -iE 'H264.*EncSlice'
+```
+
+Install `libva-utils` first if that command is missing. You want to see
+`VAProfileH264Main` or `VAProfileH264High` alongside `VAEntrypointEncSlice`.
+**Nothing printed means your sessions are being sent as pictures.**
+
+Also look at what the serving software says when a terminal connects:
+
+```sh
+journalctl --user -u gnome-remote-desktop -b | grep -i vaapi
+```
+
+A line about being unable to start hardware video is the same fault, stated
+plainly.
+
+**On Fedora this is one missing package, and it is not installed by default.**
+Video encoding is stripped from the standard graphics stack for patent reasons:
+
+```sh
+sudo dnf install mesa-va-drivers-freeworld
+systemctl --user restart gnome-remote-desktop
+```
+
+Restart the serving software **after** installing, or it keeps running without the
+new driver and nothing changes. Other distributions ship encoding in their normal
+graphics packages; the check above is what matters, not the package name.
+
+**Honest note on the numbers.** The 130 megabits per second is measured. The
+figure *after* fixing it is not — no session had been observed at the time of
+writing. Expect a large improvement rather than a specific number, and measure
+your own:
+
+```sh
+a=$(cat /sys/class/net/<interface>/statistics/tx_bytes); sleep 30
+b=$(cat /sys/class/net/<interface>/statistics/tx_bytes)
+awk -v d=$((b-a)) 'BEGIN{printf "%.1f Mbps\n", d*8/30/1e6}'
+```
+
+Play the same thing on the terminal before and after, for the same length of
+time, or the two readings do not compare. And if that interface belongs to a
+bridge, read the real one — a bridge and its member count the same bytes twice.
+
 ## Uninstall
 
 **You cannot do this from the terminal's own screen.** That screen belongs to
