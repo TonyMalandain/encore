@@ -690,3 +690,12 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why it is not a defect to fix:** nothing the terminal can do would help, and the product should not start managing the far machine (D-002, D-015). What it changes is what the record should be honest about — the promise of two or three terminals rests on a machine whose spare capacity nobody has characterised, and on a household understanding that the two compete.
 - **Source:** measured on the machine being connected to, 2026-09-29
 - **Touches:** problem.md, users.md, decisions.md D-002 and D-016, README.md
+
+## 2026-09-29 — the rule that protects the profile also ships a hundred unexamined settings
+- **Kind:** problem
+- **Profiles:** person at the terminal, owner of the machine being connected to
+- **Fact:** The connection profile is copied verbatim from the single connection observed working on 2026-09-14, under a rule written into its own header forbidding hand-curation. Three of the settings that came across bear directly on the 130 megabits per second just measured: no performance preset at all, text caching switched off, and a colour depth that asks for hardware video encoding without establishing that it is available. **Verified present in the shipped file**, 2026-09-29. Their effect is the architect's reading and has not been measured.
+- **Why the rule exists, and why that is not wrong:** it was written because a hand-tidied version of the profile silently lost a setting and cost a debugging session. The rule fixed that, and should stay.
+- **What nobody priced:** the same rule ships roughly a hundred values that were never chosen — only inherited from whatever one machine happened to have on one evening. `sound=off` was already caught that way, and needed an explicit note in the header to stop a future copy switching audio back off. These three are the second instance, and this is the first time anyone has measured what an unexamined setting costs. The rule protects against losing a setting and offers no protection at all against keeping a bad one.
+- **Source:** the architect, 2026-09-29, from the shipped profile; confirmed present in the file
+- **Touches:** solution.md R-1 and R-2, decisions.md D-016, BACKLOG.md item 13c
