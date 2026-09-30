@@ -30,11 +30,6 @@ And separately:
 - **A second machine that already accepts RDP connections.** This project does
   nothing to it and makes no claims about it.
 
-`docs/requirements.md` says why each of these, and what breaks without it.
-**Read the systemd one before converting a Raspberry Pi**: below 254 the
-terminal installs, connects and looks fine while recovering differently from
-everything described here, and nothing tells you.
-
 ---
 
 ## Install
@@ -547,7 +542,6 @@ they get fixed in is `BACKLOG.md`.
 | `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
 | `docs/architecture/` | How it is built, and why it is shaped this way |
 | `docs/architecture/debt.md` | Everything known to be wrong, worst first |
-| `docs/requirements.md` | What a machine must have, why, and what breaks without it |
 | `docs/tests.md` | What to run on a converted machine, and what has been watched |
 | `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
 | `BACKLOG.md` | What order it gets fixed in |
