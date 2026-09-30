@@ -12,7 +12,7 @@ front of anybody.
 
 ---
 
-## Does your machine qualify?
+## Requirements
 
 On the machine you are converting:
 
@@ -88,184 +88,20 @@ Your desktop stays until you reboot. (`systemctl isolate encore-kiosk.target`
 is the one that switches over immediately, tearing down the desktop under you.
 It is useful for a quick try, but it does not reproduce boot conditions.)
 
-## Recommended after it is working — on the *other* machine
+### Then set up the other machine
 
-**None of this is part of Encore, and none of it runs on the terminal.** It goes
-on the machine the terminals connect to. Encore changes nothing there and makes
-no claims about it — but converting a machine creates these problems, so they
-are listed here rather than left for you to discover.
+**[`docs/other-machine.md`](docs/other-machine.md)** — three things to do on the
+machine your terminals connect to. None of them is part of Encore, and none runs
+on a terminal, but converting a machine creates all three and none announces
+itself:
 
-### Take the power controls away from the session
+1. Take the power controls away from the session, so nobody at a terminal
+   switches off the machine every terminal depends on.
+2. Stop the software updater asking for a password nobody there can answer.
+3. **Check that machine can encode video.** Without it each terminal costs
+   about 130 Mbps instead of a few — and nothing tells you which you have.
 
-A terminal fills its screen with the other machine's session, so that session's
-**Power Off** and **Restart** end up in front of whoever is sitting at the
-terminal. They belong to the machine every terminal depends on.
-
-Someone finishing at a terminal reaches for Power Off, because that is what you
-do when you have finished with a computer. **Log Out** is the action they
-actually want: it returns the terminal to the remote login screen, which is
-where a terminal should sit.
-
-**First, look for a rule you already have.** This is the step that will waste
-your evening if you skip it:
-
-```sh
-sudo grep -rl "login1" /etc/polkit-1/rules.d/
-```
-
-Rules are read in filename order and **the first one to answer wins**. A rule
-you wrote months ago will silently beat one you add today — the symptom is "I
-added the rule and nothing changed", and nothing in any log says why, because a
-rule that is never reached looks exactly like a rule that is broken. If that
-command prints a file, edit that file rather than adding another.
-
-Then, as root — using the filename that command found, or this one if it found
-nothing:
-
-```sh
-cat > /etc/polkit-1/rules.d/20-no-poweroff.rules <<'EOF'
-// Deny power-off, reboot, suspend and hibernate to everyone but admins.
-//
-// NO, not AUTH_ADMIN: asking for a password leaves the button on screen and
-// offers a box they cannot answer, which is the trap rather than the cure.
-// NO makes the session hide the entry, leaving Log Out — the action they want.
-//
-// Prefix match, so the -multiple-sessions and -ignore-inhibit variants are
-// covered. Naming actions one by one misses four of them.
-polkit.addRule(function(action, subject) {
-    if (/^org\.freedesktop\.login1\.(reboot|power-off|halt|suspend|hibernate)/.test(action.id)
-        && !subject.isInGroup("wheel")) {
-        return polkit.Result.NO;
-    }
-});
-EOF
-```
-
-`wheel` is the administrators' group on Fedora and RHEL. On Debian and Ubuntu it
-is `sudo` — change it, or the rule locks you out of your own machine's power
-menu. Check with `getent group wheel sudo`.
-
-No restart is needed; polkit picks the file up by itself. Verify against a
-non-admin account:
-
-```sh
-sudo -u <someone> busctl call org.freedesktop.login1 /org/freedesktop/login1 \
-  org.freedesktop.login1.Manager CanPowerOff
-```
-
-`"no"` means it worked. `"challenge"` means the rule is not firing — go back to
-the `grep` above. **Do not judge this by looking at the menu:** the session asks
-once and remembers the answer, so an open session shows the old state until the
-person logs out and back in.
-
-### Stop the software updater asking for an administrator password
-
-The same quirk causes a second, noisier problem. A session arriving over the
-network is not a *local* session as far as the authorisation service is
-concerned — the system's own rules test for that explicitly — so things that
-happen silently for someone sitting at the keyboard stop and ask for an
-administrator password instead.
-
-The software catalogue refreshes itself in the background. In a terminal's
-session that turns into a password box, repeatedly, in front of somebody who
-cannot answer it. Observed here six times over three days before anyone noticed.
-
-As root on the machine being connected to:
-
-```sh
-cat > /etc/polkit-1/rules.d/20-no-update-prompt.rules <<'EOF'
-// A session over the network has subject.local == false, so actions that are
-// free at the keyboard ask for an admin password instead. This restores the
-// at-the-keyboard answer for the refresh actions only — every one of these
-// already defaults to `yes` for a local session, so nothing extra is granted.
-//
-// Installing, uninstalling and configuring still need an administrator, exactly
-// as they do locally. Parental-control actions are deliberately absent.
-polkit.addRule(function(action, subject) {
-    if (action.id == "org.freedesktop.Flatpak.metadata-update" ||
-        action.id == "org.freedesktop.Flatpak.appstream-update" ||
-        action.id == "org.freedesktop.Flatpak.app-update" ||
-        action.id == "org.freedesktop.Flatpak.runtime-update" ||
-        action.id == "org.freedesktop.Flatpak.update-remote") {
-        return polkit.Result.YES;
-    }
-});
-EOF
-```
-
-This one **grants** rather than refuses, which is the opposite of the rule above
-and deliberate. Refusing would remove the password box and replace it with
-failure messages. Granting restores what the person would have had at the
-keyboard.
-
-To check it, open the software application in that person's session and let it
-refresh. No password box means it worked.
-
-If you use parental controls on that machine, note that this rule does not touch
-them, and the action that overrides them stays locked by the system's own rule.
-
-### Check that machine can encode video — this one is worth a hundredfold
-
-**A terminal's cost to your network is decided by the machine at the other end,
-not by the terminal.** A remote session is a video stream. If the serving machine
-can compress it in hardware, a busy terminal costs a few megabits per second. If
-it cannot, the session falls back to sending pictures of the screen, and the same
-terminal costs **about 130 megabits per second** — measured here on 2026-09-29.
-
-That matters because a household is expected to run two or three terminals. At
-the cheap rate they fit on anything. At the expensive rate three of them want
-around 400 megabits per second at once, which a cable carries and household
-wireless usually does not — and the machines being reused tend to end up in
-bedrooms, which is where the wireless is.
-
-**Nothing tells you which one you have.** Not the terminal, not the installer, not
-any log an adopter would think to read. The word "encoder" appears nowhere.
-
-Check it. On the machine being connected to:
-
-```sh
-vainfo | grep -iE 'H264.*EncSlice'
-```
-
-Install `libva-utils` first if that command is missing. You want to see
-`VAProfileH264Main` or `VAProfileH264High` alongside `VAEntrypointEncSlice`.
-**Nothing printed means your sessions are being sent as pictures.**
-
-Also look at what the serving software says when a terminal connects:
-
-```sh
-journalctl --user -u gnome-remote-desktop -b | grep -i vaapi
-```
-
-A line about being unable to start hardware video is the same fault, stated
-plainly.
-
-**On Fedora this is one missing package, and it is not installed by default.**
-Video encoding is stripped from the standard graphics stack for patent reasons:
-
-```sh
-sudo dnf install mesa-va-drivers-freeworld
-systemctl --user restart gnome-remote-desktop
-```
-
-Restart the serving software **after** installing, or it keeps running without the
-new driver and nothing changes. Other distributions ship encoding in their normal
-graphics packages; the check above is what matters, not the package name.
-
-**Honest note on the numbers.** The 130 megabits per second is measured. The
-figure *after* fixing it is not — no session had been observed at the time of
-writing. Expect a large improvement rather than a specific number, and measure
-your own:
-
-```sh
-a=$(cat /sys/class/net/<interface>/statistics/tx_bytes); sleep 30
-b=$(cat /sys/class/net/<interface>/statistics/tx_bytes)
-awk -v d=$((b-a)) 'BEGIN{printf "%.1f Mbps\n", d*8/30/1e6}'
-```
-
-Play the same thing on the terminal before and after, for the same length of
-time, or the two readings do not compare. And if that interface belongs to a
-bridge, read the real one — a bridge and its member count the same bytes twice.
+---
 
 ## Uninstall
 
@@ -542,6 +378,7 @@ they get fixed in is `BACKLOG.md`.
 | `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
 | `docs/architecture/` | How it is built, and why it is shaped this way |
 | `docs/architecture/debt.md` | Everything known to be wrong, worst first |
+| `docs/other-machine.md` | What to set up on the machine terminals connect to |
 | `docs/tests.md` | What to run on a converted machine, and what has been watched |
 | `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
 | `BACKLOG.md` | What order it gets fixed in |
