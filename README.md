@@ -559,43 +559,20 @@ they get fixed in is `BACKLOG.md`.
    switching to a text console and back leaves the terminal's session without
    it. Nothing on the screen says why. Restarting the terminal brings sound
    back. This is a known and accepted cost, not a fault to report.
-10. **Sound only works if the machine's sound software is new enough.** It
-    needs wireplumber 0.5 or newer. Below that the terminal installs, connects
-    and works exactly as described — it is simply silent, and says so once at
-    install and on every start. If a terminal is silent, one command says why:
-
-    ```sh
-    journalctl -t encore-kiosk -b | grep 'SOUND UNAVAILABLE'
-    ```
-
-    No output means the sound server came up and the fault is further along.
-11. **A terminal can take minutes to show its session at boot — and the cause is
-    usually not this software.** Reported on 2026-09-29 as "the screen must be on
-    when the machine starts", and **measured on 2026-09-30, where the monitor
-    turned out to be irrelevant.** With the monitor switched off, the graphics
-    hardware still reported the display connected and the terminal set a mode on
-    it normally; what actually happened was that the terminal started **two
-    minutes and eight seconds late**, then reached a session in 4.5 seconds.
-
-    `encore-kiosk.service` waits for the network before it starts, so anything
-    slow earlier in your machine's startup delays the terminal second for
-    second. On the machine measured, two network stacks were installed and the
-    unused one blocked boot for its full 120-second timeout.
-
-    **If your terminal is slow to appear, the boot log will name the cause:**
-
-    ```sh
-    systemd-analyze blame | head -20
-    systemd-analyze critical-chain encore-kiosk.service
-    ```
-
-    `docs/troubleshooting.md` has the full procedure under *The session takes a
-    very long time to appear at boot*, including the two-network-stack case and
-    how to tell which stack your machine actually uses.
-
-    **One distinguishing check while you wait:** if
-    `journalctl -t encore-kiosk` prints nothing at all, the terminal has not
-    started yet and the delay is upstream of it.
+10. **Sound only works if the machine's sound software is new enough** —
+    wireplumber 0.5 or newer, which is in the qualifying table above. Below it
+    the terminal installs, connects and works exactly as described; it is simply
+    silent, and says so at install and on every start. `docs/troubleshooting.md`
+    has the one command that says why a given terminal is silent, under *A
+    terminal with no sound*.
+11. **A terminal can take minutes to show its session at boot.** It is waiting
+    for something else on your machine, not failing. `encore-kiosk.service`
+    starts after the network is up, so anything slow earlier in startup delays
+    the terminal second for second — on the one machine measured, an unused
+    second network stack cost two minutes every boot. Not a fault in this
+    software, and it is not caused by the monitor being switched off.
+    `docs/troubleshooting.md` finds the cause on your machine, under *The
+    session takes a very long time to appear at boot*.
 
 ---
 
