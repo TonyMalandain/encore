@@ -508,7 +508,17 @@ more than usual.
 Two things to know before you start:
 
 - **`systemctl status` will lie.** The runner loops forever, so the service
-  reports `active (running)` whatever is happening. Read the journal.
+  reports `active (running)` whatever is happening. Read the journal — and read
+  it by identifier:
+
+  ```sh
+  journalctl -t encore-kiosk -b --no-pager
+  ```
+
+  **`-u encore-kiosk.service` does not work here** and fails quietly, returning
+  systemd's own start and stop lines and nothing the capability wrote. The
+  processes are moved into a login session's own cgroup, which is what `-u`
+  matches on; `docs/troubleshooting.md` has the full reason.
 - **Debug over SSH, not through the terminal's screen.** When the kiosk wedges,
   the screen is the one thing you cannot use.
 
@@ -555,7 +565,7 @@ they get fixed in is `BACKLOG.md`.
     install and on every start. If a terminal is silent, one command says why:
 
     ```sh
-    journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+    journalctl -t encore-kiosk -b | grep 'SOUND UNAVAILABLE'
     ```
 
     No output means the sound server came up and the fault is further along.

@@ -15,6 +15,15 @@ Environment=HOME=/var/lib/encore
 # it floods the journal with GTK chatter, and the logging that matters here
 # does not go through GLib.
 Environment=WLOG_LEVEL=INFO
+# Read this capability's log with `journalctl -t encore-kiosk`, never with
+# `journalctl -u`. PAMName=login below makes logind move our processes into a
+# login session scope under the user slice, so their cgroup at the moment of
+# logging is session-N.scope and not this unit — which is what `-u` matches on.
+# The identifier is stamped on the journal stream systemd opens for the unit's
+# output, and processes keep that stream across the cgroup move. It also names
+# the capability rather than the compositor, so replacing cage does not change
+# the query an operator has to know.
+SyslogIdentifier=encore-kiosk
 #purposefully disable gnome-keyring for password storage
 InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
 InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so

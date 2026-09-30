@@ -9,8 +9,10 @@ export HOME=/var/lib/encore
 #   encore: SOUND UNAVAILABLE: <why there is no sound, in one line>
 #
 # There is no path out of start_sound that writes neither, which is what makes
-#   journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
-# a complete answer rather than a hopeful one.
+#   journalctl -t encore-kiosk -b | grep 'SOUND UNAVAILABLE'
+# a complete answer rather than a hopeful one. It is `-t` and not `-u` because
+# PAMName=login moves these processes out of the unit's cgroup; see the comment
+# beside SyslogIdentifier in encore-kiosk.service.
 HELPER_PIDS=
 
 log() { printf 'encore: %s\n' "$*" >&2; }

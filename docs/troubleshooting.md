@@ -23,10 +23,28 @@ service reports `active (running)` no matter how badly it is going, and the
 restart policy can never fire. Read the journal instead:
 
 ```sh
-journalctl -u encore-kiosk.service -b --no-pager
-journalctl -b --no-pager | tail -80          # everything, not just this unit
+journalctl -t encore-kiosk -b --no-pager
+journalctl -b --no-pager | tail -80          # everything, not just this capability
 journalctl -b -u systemd-logind --no-pager   # seats and sessions
 ```
+
+**`-t encore-kiosk`, and not `-u encore-kiosk.service`.** Asking by unit returns
+only systemd's own start and stop lines — never the compositor, the client or
+the runner's markers — and it returns them without complaint, so it reads like a
+capability that logs nothing. The reason is `PAMName=login`: logind opens a
+login session and moves the processes into a session scope under the user's
+slice, and `journalctl -u` matches the cgroup a line was logged from, which by
+then is `session-N.scope`. `PAMName=login` is what grants the seat, the runtime
+directory and the device access that let the compositor take the screen at all,
+so it is not going anywhere. `SyslogIdentifier=encore-kiosk` in the unit stamps
+the identifier on the journal stream instead, which the processes keep across
+the move — and it names the capability rather than the compositor, so it still
+works if `cage` is ever replaced.
+
+If a line you expect is missing from `-t` output, fall back to
+`journalctl -b _COMM=cage --no-pager`, which catches anything writing through
+the compositor's stream. Use it to confirm a suspicion, not as the everyday
+query: it names an implementation detail that will one day be wrong.
 
 ---
 
@@ -246,7 +264,7 @@ guest — send them through the Boxes menu, or switch from inside with `chvt`.
 **Check, and it is one command:**
 
 ```sh
-journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+journalctl -t encore-kiosk -b | grep 'SOUND UNAVAILABLE'
 ```
 
 **No output is an answer, not an absence of one.** The runner writes one of
@@ -255,7 +273,7 @@ sound code, so an empty result means the sound server came up and the fault is
 further along: the client, the channel, the far end, or the speakers. Then:
 
 ```sh
-journalctl -u encore-kiosk.service -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
+journalctl -t encore-kiosk -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
 ```
 
 **Any output from the first command is the cause, in one line.** The usual ones:
@@ -316,7 +334,8 @@ whether a particular fingerprint is the one being presented.
 ## The shape of a good debugging session here
 
 1. SSH in. Never debug through the terminal's own screen.
-2. Read the journal, not `systemctl status`.
+2. Read the journal by identifier — `-t encore-kiosk`, not `-u`, and not
+   `systemctl status`.
 3. If there is no output at all, suspect waiting, not crashing.
 4. Check whether the session is active before anything else.
 5. Change one thing, and write down whether it mattered — including when it

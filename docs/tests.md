@@ -29,13 +29,18 @@ Status column is what has actually been watched, not what is believed.
 
 ```sh
 systemctl status encore-kiosk.service
-journalctl -u encore-kiosk.service -b --no-pager
+journalctl -t encore-kiosk -b --no-pager
 ```
 
 **Pass:** the remote machine's login screen fills the terminal's screen.
 
 **Do not trust `systemctl status`.** The runner loops forever, so the service
 reports `active (running)` whatever is happening. Read the journal.
+
+**It is `-t encore-kiosk` in every test below, never `-u`.** Asking by unit
+returns systemd's own lines and nothing the capability wrote, and it does so
+silently — so `-u` plus a `grep` looks like a clean result when it is an empty
+one. `troubleshooting.md` explains why under "Before anything else".
 
 If nothing appears, go to `troubleshooting.md` — every failure seen so far is
 listed there with the check that identifies it.
@@ -106,7 +111,7 @@ pass. Record them separately; a single "Test 5 passed" hides which.
 **Run this first, whatever the symptom:**
 
 ```sh
-journalctl -u encore-kiosk.service -b | grep 'SOUND UNAVAILABLE'
+journalctl -t encore-kiosk -b | grep 'SOUND UNAVAILABLE'
 ```
 
 **No output means the sound path came up** — the server started, so the fault is
@@ -132,7 +137,7 @@ from a list (R-12).
 If it is silent, take the `grep` above first, then:
 
 ```sh
-journalctl -u encore-kiosk.service -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
+journalctl -t encore-kiosk -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
 ```
 
 `rdpsnd` lines with no sound means the channel opened and the device or the far
@@ -169,7 +174,7 @@ right machine for this.
 ```sh
 systemctl restart encore-kiosk.service
 sleep 15
-journalctl -u encore-kiosk.service -b --no-pager | tail -40
+journalctl -t encore-kiosk -b --no-pager | tail -40
 ```
 
 **Pass:** the remote login screen appears, and the journal shows no repeated
