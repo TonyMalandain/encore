@@ -153,42 +153,6 @@ systemctl get-default
 
 ---
 
-## What to test, and what to write down
-
-The tests are in `docs/tests.md`, each with what has actually been watched and
-what has only been assumed. Run them in order; the status column there is the
-honest record and this file does not duplicate it.
-
-Two have answers so far. A session appearing has been watched twice, most
-recently on a clean machine built by `encore-install.sh`. And the encryption key
-does **not** have to travel between machines — it is created on the terminal, so
-nothing secret is copied and every terminal holds its own. The rest have never
-been run, including the one that asks whether you really get the machine back.
-
-If something fails, `docs/troubleshooting.md` lists every failure seen so far,
-with the check that identifies it and what turned out to be wrong. Nearly all
-of them were silent — no error, no log line — so the order of checks matters
-more than usual.
-
-Two things to know before you start:
-
-- **`systemctl status` will lie.** The runner loops forever, so the service
-  reports `active (running)` whatever is happening. Read the journal — and read
-  it by identifier:
-
-  ```sh
-  journalctl -t encore-kiosk -b --no-pager
-  ```
-
-  **`-u encore-kiosk.service` does not work here** and fails quietly, returning
-  systemd's own start and stop lines and nothing the capability wrote. The
-  processes are moved into a login session's own cgroup, which is what `-u`
-  matches on; `docs/troubleshooting.md` has the full reason.
-- **Debug over SSH, not through the terminal's screen.** When the kiosk wedges,
-  the screen is the one thing you cannot use.
-
----
-
 ## Known issues
 
 Detail for every one of these is in `docs/architecture/debt.md`, and the order
@@ -235,19 +199,16 @@ they get fixed in is `BACKLOG.md`.
 
 ---
 
-## Where everything is written down
+## Working on this
 
-| Where | What |
-|---|---|
-| `docs/product/` | What the product is for, who it serves, what was decided |
-| `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
-| `docs/architecture/` | How it is built, and why it is shaped this way |
-| `docs/architecture/debt.md` | Everything known to be wrong, worst first |
-| `docs/other-machine.md` | What to set up on the machine terminals connect to |
-| `docs/tests.md` | What to run on a converted machine, and what has been watched |
-| `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
-| `BACKLOG.md` | What order it gets fixed in |
-| `LICENSE` | Apache License 2.0 — the terms you get this under |
+**Something not working?** `docs/troubleshooting.md` lists every failure seen so
+far, with the check that identifies it. Nearly all of them were silent — no
+error, no log line — so the order of the checks matters.
+
+**Changing something, or just curious how it is put together?**
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has the map of where everything is written
+down, what to test and what to write down, and the rules this project holds
+itself to.
 
 ---
 
