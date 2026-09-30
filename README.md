@@ -101,14 +101,17 @@ itself:
 3. **Check that machine can encode video.** Without it each terminal costs
    about 130 Mbps instead of a few — and nothing tells you which you have.
 
-### What the installer did
+### What the installer actually did
 
-**[`docs/install-by-hand.md`](docs/install-by-hand.md)** — every step
-`encore-install.sh` takes, written out, with what has gone wrong at each one.
-Read it if an install failed halfway and you need to know what it was trying to
-do, or if you would rather read the steps than the shell before trusting this on
-your machine. It also has the by-hand removal sequence, for a machine that no
-longer has the repository on it.
+**Read [`encore-install.sh`](encore-install.sh).** It is 239 lines, a quarter of
+them comments, and it explains why at every step that has gone wrong before.
+
+There is deliberately no second, prose copy of those steps. One existed and
+drifted from the script twice in three weeks — it lost the sound packages and
+the directory-ownership fix, so following it produced a silent terminal that
+could not write into its own home. **A description of a script is a second thing
+to keep true, and this project's recurring failure is records that read correct
+while being wrong.**
 
 ---
 
@@ -140,8 +143,33 @@ they are ordinary software and removing them could break something else.
 
 Reboot afterwards to come back up as an ordinary machine.
 
-If the repository is no longer on the machine, the sequence to run by hand is in
-[`docs/install-by-hand.md`](docs/install-by-hand.md), under *Undoing it by hand*.
+### If the repository is gone from the machine
+
+`encore-uninstall.sh` is the supported route and checks its own work. This is
+the sequence by hand, for a converted machine that no longer has the clone on
+it:
+
+```sh
+systemctl set-default graphical.target   # or whatever it was before
+systemctl disable encore-kiosk.service
+rm /etc/systemd/system/encore-kiosk.service /etc/systemd/system/encore-kiosk.target
+rm /usr/local/bin/encore-kiosk.sh
+systemctl daemon-reload
+userdel -r encore          # deletes the profile, the key and the stored password
+rm -rf /var/lib/encore
+reboot
+```
+
+**What the machine booted into before conversion is recorded** in
+`/var/lib/encore/encore-install.conf` — read it before that `rm -rf`, or you are
+guessing at the first line.
+
+Then confirm, rather than trusting the removal you just did:
+
+```sh
+id encore; ls -d /var/lib/encore; ls /etc/systemd/system/ | grep encore
+systemctl get-default
+```
 
 ---
 
@@ -235,7 +263,6 @@ they get fixed in is `BACKLOG.md`.
 | `docs/product/alternatives.md` | Why not one of the existing thin-client projects |
 | `docs/architecture/` | How it is built, and why it is shaped this way |
 | `docs/architecture/debt.md` | Everything known to be wrong, worst first |
-| `docs/install-by-hand.md` | Every step the installer takes, and what goes wrong at each |
 | `docs/other-machine.md` | What to set up on the machine terminals connect to |
 | `docs/tests.md` | What to run on a converted machine, and what has been watched |
 | `docs/troubleshooting.md` | Every failure seen so far, and what caused it |
