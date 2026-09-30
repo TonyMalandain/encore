@@ -643,3 +643,13 @@ architect on the same day and are recorded in `docs/architecture/`.
 - **Why this is in the product's record when the machine is out of scope:** the product is the reason anybody is looking at another machine's controls. Every adopter inherits both the moment they convert a machine, and neither is discoverable in advance — the second one announced itself only as six failed authentications in a log nobody was reading.
 - **Source:** observed by the author on the machine being connected to, 2026-09-29
 - **Touches:** problem.md, users.md, solution.md R-6, decisions.md D-002, README.md, BACKLOG.md item 6b
+
+## 2026-09-29 — a terminal does not come back if its screen was off
+- **Kind:** problem
+- **Profiles:** person at the terminal, administrator
+- **Fact:** Observed on the Mac Mini. If the monitor is switched off when the machine boots, the capability does not start properly and no session appears. The screen must already be on at boot for the interface to come up.
+- **Why it matters more than it sounds:** R-8 promises a terminal comes back by itself after a restart, and this is the most ordinary way for that to fail — a power cut in the night, a monitor off because a child switched it off, and a dead terminal in the morning that nobody at the terminal can repair. A child cannot diagnose it and would not know the order matters. The record's own argument is that a household believing it is under control when it is not is worse than no conversion at all; this is that, caused by turning a screen off.
+- **Why nobody caught it:** every observation so far has been made by someone sitting in front of a screen they had just been using, or over the network with the screen irrelevant. The failing case requires the screen to be off *before* the machine starts, which is the normal state of a room nobody is in.
+- **Suspected cause, not established:** with a monitor off the graphics hardware may report no display connected, and a compositor given no output has nothing to render to. One reading of what the hardware reports while the screen is off would settle it.
+- **Source:** the author, 2026-09-29
+- **Touches:** solution.md R-8 and R-2, BACKLOG.md item 8b, docs/tests.md Test 7
