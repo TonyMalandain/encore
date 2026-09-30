@@ -496,6 +496,15 @@ they get fixed in is `BACKLOG.md`.
     ```
 
     No output means the sound server came up and the fault is further along.
+11. **The screen must already be on when the machine starts.** Observed on
+    2026-09-29. If the monitor is switched off at boot, the terminal does not
+    come up properly and no session appears; switch the screen on and restart
+    the machine. **This is the worst issue on the list**, because the case that
+    triggers it is the one nobody is watching: a power cut at night, a monitor
+    somebody switched off, and a dead terminal in the morning that the person
+    using it cannot repair. The likely cause is that hardware reports no display
+    attached while a monitor is off, and there is then nothing for the terminal
+    to draw on. Not yet diagnosed and not yet fixed.
 
 ---
 
