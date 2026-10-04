@@ -511,9 +511,12 @@ where that gets paid off rather than assumed.
 
 ### 14a — off-target: no Fedora terminal needed
 
-Five checks. Each one runs against the real shipped files: nothing is mocked,
-nothing is installed, and no fabricated file stands in for anything the product
-ships or the system provides.
+Six checks. Each one runs against the real shipped files, or against fabricated
+inputs in a temporary directory where the point is the mechanism rather than
+the file. Nothing is installed, and **no fabricated file ever stands in for
+something the product ships or the system provides** — a copy of a shipped file
+used as test input is not a substitute for the installed one, and is said so
+each time it appears.
 
 1. **The installer still parses, on both shells the targets use.** `/bin/sh` is
    `bash` on one machine in this project and `dash` on another, and that has
@@ -525,18 +528,49 @@ ships or the system provides.
 
    **Pass:** `syntax ok`.
 
-2. **The unit still parses, and no key in it is being ignored.**
+2. **The unit still parses, and no key in it is being ignored.** Two halves,
+   and the first one exists because **the obvious form of this check cannot
+   fail.** It was first written as the *absence* of two strings — no
+   `Unknown key`, no `InaccessiblePaths` — and
+   `systemd-analyze verify ./nope.service` on a unit that does not exist
+   satisfies both: it prints `Unit nope.service not found.` and neither string
+   appears. A typo in the filename, a renamed unit or a missing
+   `systemd-analyze` all read as a pass. So the verifier is first made to say
+   something that proves it parsed this very unit, and only then is silence
+   worth anything.
+
+   **(a) The control: the verifier is present, and it is reading our unit.** A
+   misspelled copy in a temporary directory — fabricated input, never a
+   substitute for the shipped file, which is left untouched:
 
    ```sh
-   systemd-analyze verify ./encore-kiosk.service
+   T=$(mktemp -d)
+   sed 's/^InaccessiblePaths=/InaccesiblePaths=/' encore-kiosk.service > "$T/encore-kiosk.service"
+   echo "misspelled: $(grep -c '^InaccesiblePaths=' "$T/encore-kiosk.service")"
+   echo "complaints: $(systemd-analyze verify "$T/encore-kiosk.service" 2>&1 | grep -c "Unknown key 'InaccesiblePaths'")"
+   rm -rf "$T"
    ```
 
-   **Pass:** no line containing `Unknown key` and no line containing
-   `InaccessiblePaths`. On a machine without the client installed it also prints
-   `Command /usr/bin/cage is not executable` — expected, not a failure. **Read
-   the output: the exit status says nothing here.** It is 0 while warning about
-   a misspelled key (Fedora 44, 2026-10-04) and 1 purely because `cage` is
-   absent, so neither value is evidence either way.
+   **Pass:** the two numbers are equal and **not zero** — one complaint per
+   suppression line in the unit, whatever that number grows to. A zero, or a
+   mismatch, voids half (b) entirely: it means the verifier did not read the
+   keys, so its silence about the real unit proves nothing.
+
+   **(b) The real shipped unit, with the one known-benign line filtered out:**
+
+   ```sh
+   systemd-analyze verify ./encore-kiosk.service 2>&1 | grep -vF 'Command /usr/bin/cage is not executable'
+   ```
+
+   **Pass:** **no output at all.** Stated positively like this, anything the
+   verifier says is a failure — including `Unit … not found.`, which is how the
+   earlier wording let a missing file through. On a machine without the client
+   installed the filtered line is expected and is not a fault: `cage` is
+   installed by the conversion, not by this check.
+
+   **Read the output, never the exit status.** It is 0 while warning about a
+   misspelled key, and 1 purely because `cage` is absent — measured both ways
+   on Fedora 44 on 2026-10-04 — so neither value is evidence either way.
 
 3. **The family block really produces the right family and the right seven
    packages, on a real machine of each family.** This runs the shipped lines
@@ -659,10 +693,26 @@ nothing installed, no `encore` identity created, `encore-install.sh` not run:**
 
 - **Check 1 passed.** `syntax ok`, under `bash` 5.3.9 as `/bin/sh` and under
   `dash` 0.5.13.1.
-- **Check 2 passed.** The only line printed is
+- **Check 2 passed, and was watched failing first — in both halves.** Half (a):
+  the misspelled copy gave `misspelled: 4` and `complaints: 4`, the four
+  complaints naming the copy's own path and lines 35 to 38
+  (`Unknown key 'InaccesiblePaths' in section [Service], ignoring.`). Half (b)
+  against the real unit: **no output**, once the expected
   `encore-kiosk.service: Command /usr/bin/cage is not executable: No such file
-  or directory`; no `Unknown key`, no `InaccessiblePaths`. Exit status 1, from
-  the absent `cage` and nothing else — which is why the output is what is read.
+  or directory` is filtered. Exit status 1 there, from the absent `cage` and
+  nothing else.
+
+  **The red, which is why this check was rewritten.** The earlier wording — the
+  absence of `Unknown key` and of `InaccessiblePaths` — was satisfied by
+  `systemd-analyze verify ./nope.service`: output `Unit nope.service not
+  found.`, `exit=1`, `Unknown key` lines **0**, `InaccessiblePaths` lines
+  **0**, so a run that never opened a unit file passed. Under the new wording
+  the same command fails as it should: half (b) prints `Unit nope.service not
+  found.` and the pass condition is no output. **The check had never been seen
+  to fail, which is exactly why nothing exposed that it could not** — the same
+  shape as the installer's coverage check reporting success over an empty list,
+  and worse here, because this file's whole purpose is recording what was
+  watched.
 - **Check 3 passed on the dnf side and for the machine with neither.** The
   shipped fragment printed
   `dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber`,
