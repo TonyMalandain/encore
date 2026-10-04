@@ -613,6 +613,47 @@ ships or the system provides.
 
    **Pass:** `exit=0`.
 
+6. **The plugin search runs late enough to find anything.** This is a
+   regression check on the order of the installer's own lines, and it exists
+   because the first attempt at this ticket got it wrong: the search was put
+   where the old static path used to be computed, 138 lines above the step that
+   uses it and *before the packages step installs the client*. On a machine
+   being converted for the first time the plugin does not exist yet, so the
+   search found nothing, nothing was suppressed, and the install died at `no
+   password stored in the profile` — the exact defect the ticket exists to
+   remove, on both families, because apt and dnf both install weak
+   dependencies by default and the secret plugin is one
+   (`dnf -q repoquery --recommends remmina` lists `remmina-plugins-secret`,
+   Fedora 44, 2026-10-04).
+
+   **The mechanism — a filesystem query answers differently before and after
+   the file exists.** Fabricated tree, nothing mocked, nothing installed:
+
+   ```sh
+   T=$(mktemp -d); mkdir -p "$T/usr/lib/remmina/plugins"
+   echo "before: [$(find "$T/usr/lib" "$T/usr/lib64" -name 'remmina-plugin-secret.so' 2>/dev/null | sed 's|^|-|' | tr '\n' ' ')]"
+   touch "$T/usr/lib/remmina/plugins/remmina-plugin-secret.so"
+   echo "after:  [$(find "$T/usr/lib" "$T/usr/lib64" -name 'remmina-plugin-secret.so' 2>/dev/null | sed 's|^|-|' | tr '\n' ' ')]"
+   rm -rf "$T"
+   ```
+
+   **Pass:** `before: []` and `after:` carrying the one `-` prefixed path. The
+   `before` line is what the installer saw on a fresh target when the search
+   ran too early. Note that `$T/usr/lib64` does not exist in this tree, which
+   is also the apt case — `2>/dev/null` swallows find's complaint and the
+   surviving root is still searched.
+
+   **The order, in the shipped file.** Addressed by content, not by line
+   number, so it does not drift:
+
+   ```sh
+   awk '/^echo "==> packages"/{p=NR} /^SECRET_PLUGINS=/{f=NR} /^echo "==> password"/{w=NR} END{print (p && f && w && p<f && f<w) ? "find runs between packages and password" : "WRONG ORDER: packages=" p " find=" f " password=" w}' encore-install.sh
+   ```
+
+   **Pass:** `find runs between packages and password`. Any other output means
+   the search has been moved back up to sit with the other variable
+   assignments — which reads tidier and reinstates the defect.
+
 **Results, 2026-10-04, on the author's Fedora 44 workstation — read-only,
 nothing installed, no `encore` identity created, `encore-install.sh` not run:**
 
@@ -637,6 +678,23 @@ nothing installed, no `encore` identity created, `encore-install.sh` not run:**
   the only Fedora machine available is the RDP target (D-002). The unit-file
   form of an empty `InaccessiblePaths=` was accepted by `systemd-analyze
   verify` on Fedora 44 on 2026-10-04; that is parsing, not running.
+- **Check 6 was watched failing, then passing.** Against the first commit of
+  this work the order half printed
+  `WRONG ORDER: packages=136 find=97 password=235`; after the search was moved
+  into the password step it prints `find runs between packages and password`,
+  with the search at line 249 against the packages step at 124, the password at
+  252 and the unit coverage loop at 282 — so both readers of `$SECRET_PLUGINS`
+  are now downstream of it. The mechanism half printed `before: []` and then
+  `after: [-…/usr/lib/remmina/plugins/remmina-plugin-secret.so]`, in a tree
+  with no `usr/lib64` at all, and that pipeline exited 0 — so a missing search
+  root is not a failure under `set -e`.
+- **The unit coverage check in step 6 of the installer had the same fault, and
+  the same move fixed it.** It greps the installed unit for every path
+  `$SECRET_PLUGINS` holds, so while the search ran too early the list was empty
+  on every first conversion, the loop body never ran, and the check reported
+  success having examined nothing. It could not have failed. Nothing about the
+  check itself changed; it is correct now only because the value it reads is
+  gathered after the client is installed.
 
 ### 14b — a scratch Fedora machine converts
 

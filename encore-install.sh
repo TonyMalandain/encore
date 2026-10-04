@@ -85,18 +85,6 @@ STARTED=$(date '+%Y-%m-%d %H:%M:%S')
 # without anyone having to remember.
 PREVIOUS_DEFAULT=$(systemctl get-default 2>/dev/null || echo "")
 
-# The keyring plugin must be out of reach while the password is written, or the
-# client insists on a secret service that an unattended terminal has nobody to
-# unlock. Found, not computed: deriving the path from `uname -m` produced a
-# Debian multiarch path on every machine and matched nothing on Fedora, which
-# puts the file in /usr/lib64 (D-A19). Asking the machine where the file is
-# costs one find and makes no claim about any distribution's layout.
-#
-# Each path is prefixed `-` so systemd tolerates one that has gone; empty means
-# the plugin is not installed, so there is nothing to hide.
-SECRET_PLUGINS=$(find /usr/lib /usr/lib64 -name 'remmina-plugin-secret.so' \
-                 2>/dev/null | sed 's|^|-|' | tr '\n' ' ')
-
 # --- your way back in -------------------------------------------------------
 
 # Once the capability is on, the screen belongs to the remote session: no
@@ -231,6 +219,35 @@ COUNT=$(find "$HOME_DIR/.local/share/remmina" -maxdepth 1 -name '*.remmina' | wc
 [ "$COUNT" -eq 1 ] || die "expected 1 profile, found $COUNT"
 
 # --- 5. the password, and the key that protects it --------------------------
+
+# The keyring plugin must be out of reach while the password is written, or the
+# client insists on a secret service that an unattended terminal has nobody to
+# unlock. Found, not computed: deriving the path from `uname -m` produced a
+# Debian multiarch path on every machine and matched nothing on Fedora, which
+# puts the file in /usr/lib64 (D-A19). Asking the machine where the file is
+# costs one find and makes no claim about any distribution's layout.
+#
+# WHERE THIS LINE SITS IS PART OF THE FIX. It must run AFTER the packages step
+# and BEFORE the password is written, and it reads as though it belongs 140
+# lines up with the other variable assignments — which is where it was first
+# put, and that reinstated the whole defect. The path it replaced was a static
+# string built from `uname -m`, correct whether or not the file existed, so
+# order never mattered; a filesystem query is only truthful once the
+# filesystem can answer. On a first conversion the client is not installed
+# yet, and the plugin arrives WITH it: `remmina-plugins-secret` is a weak
+# dependency of `remmina` on both families and both package managers install
+# weak dependencies by default. Searching before the packages step therefore
+# finds nothing on exactly the machine this is for, suppresses nothing, and
+# dies at "no password stored in the profile". docs/tests.md test 14a check 6
+# is the regression check; do not tidy this back up the file.
+#
+# Each path is prefixed `-` so systemd tolerates one that has gone; empty means
+# the plugin really is not installed, so there is nothing to hide. A root that
+# does not exist — /usr/lib64 on many apt machines — is find's complaint to
+# stderr and nothing more; the surviving root is still searched and the
+# pipeline still exits 0, which `set -e` needs.
+SECRET_PLUGINS=$(find /usr/lib /usr/lib64 -name 'remmina-plugin-secret.so' \
+                 2>/dev/null | sed 's|^|-|' | tr '\n' ' ')
 
 echo "==> password"
 systemd-run --quiet --pipe --uid=encore \
