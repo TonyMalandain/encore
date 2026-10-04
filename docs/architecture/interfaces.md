@@ -151,6 +151,20 @@ because it is what an administrator types to run the runner by hand while
 debugging (`docs/troubleshooting.md`), so it is as hard to change as the unit
 names are.
 
+**Unaffected by the second package-manager family, 2026-10-04 (D-036), and the
+reason is worth keeping.** The paragraph above reasons from the Filesystem
+Hierarchy Standard *and from Debian policy specifically*, which is now a
+one-family argument in a two-family product. It still holds, twice over. The
+FHS half is not Debian's — `/usr/local` is reserved for the local administrator
+in the standard itself, and Fedora follows it; `/usr/local/bin` exists on a
+stock Fedora 44 and no package owns it. The Debian-policy half was only ever
+load-bearing for *packaging*, and D-027 says there will never be a package, so
+no distribution's packaging guidelines are engaged on either family. The
+contract is one path, correct for the same reason on both. **The SELinux label
+is correct for free too**: `/usr/local/bin` is `bin_t` on Fedora and
+`matchpathcon` wants `bin_t` for the script, so the installer needs no
+relabelling step — measured 2026-10-04, see `constraints.md` C-1.
+
 ---
 
 ## I-6 — the RDP connection itself

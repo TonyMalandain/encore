@@ -17,12 +17,104 @@ merely renamed.
 
 | Constraint | Value |
 |---|---|
-| Package manager | apt family only |
+| Package manager | **apt family or dnf family** (D-036, 2026-10-04) — nothing else |
 | Display server | Wayland only |
+| Mandatory access control | **no policy of our own, on either family.** SELinux enforcing is in scope and costs nothing; see the paragraph below |
 | Init | systemd only, **and ≥ 254** — `RestartSteps=` / `RestartMaxDelaySec=` arrived there and ADR-0007 depends on them. Older systemd ignores them silently and gives flat retries. |
 | Python | CPython 3, standard library only, **and ≥ 3.10** — see the paragraph below. Below it `encore-probe.py` does not import at all. **Corrected 2026-09-23 down from 3.14**, which was derived from a defect since fixed. |
 | Hardware | none assumed — 32-bit and ARM must be considered in scope |
-| Host distribution | out of scope; the author's own host is a distribution we do not support |
+| Host distribution | out of scope (D-002) — **and this row no longer means what it said.** It was written when the author's host was a distribution we did not support; since D-036 the author's host is Fedora, which *is* a supported terminal family. The machine is still out of scope, but now because of what it *is* — the RDP target — and not because of what it runs. Nothing may be installed on it to test the dnf side |
+
+**SELinux enforcing is permitted, and it needs nothing from us. Measured
+2026-10-04 on Fedora 44, `selinux-policy-targeted-44.10-1.fc44`, SELinux
+`Enforcing`.** D-036 named SELinux as the specific untested risk of accepting
+dnf, and the answer is that the product's arrangement is already allowed by the
+stock targeted policy. Five things were measured, not reasoned:
+
+- **The identity's home carries `var_lib_t`, and that does not block it.**
+  `matchpathcon` returns `system_u:object_r:var_lib_t:s0` for `/var/lib/encore`
+  and for every directory `encore-install.sh:112-116` creates beneath it — not
+  `user_home_dir_t`. The live kernel was then asked directly, with
+  `selinux_check_access`, whether the session's domain may use that label:
+  `dir` `search`/`write`/`add_name`, `file` `create`/`read` and `sock_file`
+  `create` are all **allowed** from both domains the session can land in. The
+  policy says why — both carry the `files_unconfined_type` attribute, and
+  `allow files_unconfined_type file_type:…` covers every class; `unconfined_t`
+  additionally gets `allow userdomain var_lib_t:dir { add_name … write }`. So
+  the label is **untidy, not fatal**: a home that is not a home type reads
+  oddly and changes nothing.
+- **The login mapping sends `encore` to an unconfined user.**
+  `/etc/selinux/targeted/seusers` contains exactly two lines, and one is
+  `__default__:unconfined_u:s0-s0:c0.c1023`. SELinux keys on nothing else:
+  **neither `--system` nor `/usr/sbin/nologin` is visible to any rule**, as no
+  rule in the policy conditions on a uid range or a login shell.
+- **`PAMName=login` succeeds from systemd, which is the one thing that could
+  have refused to start the unit.** Fedora's `/etc/pam.d/login` carries
+  `session required pam_selinux.so open`, and `required` means a failed context
+  computation stops the session dead. That computation was run directly against
+  `libselinux-3.11`: `get_default_context("unconfined_u",
+  "system_u:system_r:init_t:s0")` returns **0** and
+  `unconfined_u:unconfined_r:unconfined_t:s0`. It does not fail.
+- **The transition is explicitly contemplated by the policy, including under
+  `NoNewPrivileges=true`.** `allow init_t init_t:process setexec` lets systemd
+  set the exec context at all; `allow init_t login_userdomain:process
+  transition` permits the domain change, and `unconfined_t` carries
+  `login_userdomain`. The third rule is the one worth knowing about:
+  `allow init_t login_userdomain:process2 nnp_transition`. An SELinux domain
+  transition under `NoNewPrivileges=` requires that permission, and
+  `encore-kiosk.service:48` sets `NoNewPrivileges=true` — so this pair would
+  have been a hard, silent stop had the policy not named it.
+- **If PAM does not relabel, the fallback is also unconfined.**
+  `selinuxexeccon /usr/bin/chvt system_u:system_r:init_t:s0` returns
+  `system_u:system_r:unconfined_service_t:s0` — a `bin_t` binary started by
+  systemd lands in `unconfined_service_t`, which carries the same
+  `files_unconfined_type`, `devices_unconfined_type` and
+  `xserver_unconfined_type` attributes. `tty_device_t`, `dri_device_t` and
+  `event_device_t` are all readable, writable, openable and ioctl-able from
+  **both** candidate domains (asked of the live kernel). Which of the two the
+  session actually ends up in was **not** established and does not matter:
+  every file-label question has the same answer either way.
+- **`pam_namespace.so`, also in Fedora's `login` stack, is a no-op**:
+  `/etc/security/namespace.conf` has no active line on a stock Fedora 44.
+
+**And nothing needs relabelling either, which is the stronger result.** Every
+directory `encore-install.sh` writes into already carries the type
+`matchpathcon` wants for the files placed in it, so the default
+parent-inheriting label is the correct one and **no `restorecon` and no
+`semanage fcontext` call belongs in the installer**:
+
+| Written | Parent's type | What `matchpathcon` wants |
+|---|---|---|
+| `/etc/systemd/system/encore-kiosk.{service,target}` | `systemd_unit_file_t` | `systemd_unit_file_t` |
+| `/usr/local/bin/encore-kiosk.sh` | `bin_t` | `bin_t` |
+| the install record under `/etc` | `etc_t` | `etc_t` |
+| everything under `/var/lib/encore` | `var_lib_t` | `var_lib_t` |
+
+The first row is the one that would have been fatal — systemd refuses to load a
+unit file of the wrong type — and it is correct for free.
+
+**The hazard here is doing something, not doing nothing.** The obvious reflex,
+`semanage fcontext -a -t user_home_dir_t "/var/lib/encore(/.*)?"`, is the one
+change that could break a working terminal: `user_home_dir_t` is reachable from
+a `home_root_t` parent, and `/var/lib` is `var_lib_t`, so the result is a home
+type hanging off a non-home root — and a `--system` identity has no business in
+a user home type in the first place. **There is nothing to add to the installer
+on either family.** D-036's "one implementation" claim survives intact: no
+policy module, no Fedora-only component, and so no ADR — there is no decision
+left to take.
+
+**What is read rather than measured, and it is the part that matters.**
+Everything above is policy and labelling. **None of it is a terminal.** A
+session can still be refused by a rule that has nothing to do with file labels,
+and a refusal can be invisible: `dontaudit` rules suppress denials without
+logging them, and this policy carries **102** of them reaching
+`unconfined_service_t`, **164** reaching `unconfined_t` and **121** reaching
+`init_t`. A clean AVC log is therefore not evidence of anything. The smallest
+thing that would settle it is two boots on one scratch Fedora machine — install,
+boot the target once with `setenforce 0` and once with `setenforce 1`, and
+compare what appears on the screen. If they match, SELinux is out of the picture
+for good; if they differ, `semodule -DB` and `ausearch` name the rule. That is
+not a policy question and it belongs to the Fedora conversion, not here.
 
 **Consequence nobody has priced yet:** "no hardware assumed" plus "Wayland
 only" is a real tension on old machines. A 2009 iMac or an old PC with an
@@ -99,7 +191,8 @@ Nothing checks the remaining floor, in the same way and for the same reason
 nothing checks the systemd one — see D-A18 and D-A14 in `debt.md`. Whether
 `encore-install.sh` should check either is a backlog question, not settled
 here. Note that 3.10 is a far weaker case for a check than 3.14 was: it is
-four years old, every apt-family release in scope ships something newer, and
+four years old, every release in scope ships something newer on either family
+— Fedora 44 ships 3.14 — and
 the failure mode is now a loud `SyntaxError` at import rather than a silent
 misclassification.
 

@@ -4,9 +4,23 @@ The product turns an old Linux machine into a terminal that shows nothing but
 a remote desktop session. It does this by **adding a boot target** to a machine
 that already boots, not by replacing anything.
 
-Everything is built out of parts already present on an apt-family Linux. The
-product writes a small, named set of files onto the machine and owns nothing
-else.
+Everything is built out of parts already present on **any systemd-and-Wayland
+Linux**. The product writes a small, named set of files onto the machine and
+owns nothing else.
+
+**This line used to say "an apt-family Linux", and widening it on 2026-10-04
+cost almost nothing — which is the point worth recording.** D-036 added the dnf
+family as a second claimed platform, and the reason that was cheap is that this
+sentence was already the weaker claim: the *breadth* was there from the start,
+because nothing in the design was ever reasoned from a package manager. **Only
+the installer was narrow** — four lines of `encore-install.sh` name `apt`, and
+two of seven package names differ. The runner, the unit, the target, the
+profile and the uninstaller name no package manager at all. A system assembled
+from parts that every distribution already carries pays out exactly here: the
+second family was a change to the step that fetches software and to nothing
+that decides behaviour. **Where it did not pay out is the one place the design
+did assume a distribution** — the unit's keyring suppression is written in
+Debian multiarch paths and silently misses on Fedora; see `debt.md` D-A19.
 
 **Names corrected 2026-09-23.** Everything below used to be called
 `kiosk.target` / `remmina-kiosk.*` / `/var/lib/kiosk`. D-022 and D-023 renamed
@@ -93,6 +107,12 @@ and was corrected on 2026-09-23.
 - **2026-09-23, on a clean Ubuntu 26.04 VM built from the written procedure:** a
   session appeared again, from nothing, by following `README.md`. Remmina
   1.4.43, cage 0.2.1, FreeRDP 3.31, x86_64.
+
+**Both were apt. Nothing has ever been watched on the dnf family**, which
+D-036 claimed on 2026-10-04 — so every observation on this page belongs to one
+of the product's two platforms, and the other one has none. That is the cost
+D-036 accepted in writing; it is repeated here because this is the page a
+reader comes to for what is real.
 
 What is still a code read is named where it appears. In particular nothing
 about a *dropped* connection has ever been watched (Test 2 in `docs/tests.md`),

@@ -281,7 +281,7 @@ sudo env XDG_RUNTIME_DIR=/tmp/cagerun cage -d -s -- /usr/local/bin/encore-kiosk.
 **Check:**
 
 ```sh
-ls /usr/lib/*/remmina/plugins/ | grep -i secret
+find /usr/lib /usr/lib64 -name 'remmina-plugin-secret.so' 2>/dev/null
 ```
 
 **Cause:** the client's keyring plugin is installed, so it insists on a secret
@@ -298,6 +298,40 @@ InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secr
 InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
 InaccessiblePaths=-/usr/lib/arm-linux-gnueabihf/remmina/plugins/remmina-plugin-secret.so
 ```
+
+### On Fedora this suppression does not work, and says nothing
+
+**Known defect, found 2026-10-04, recorded as `D-A19`.** All three paths above
+are Debian multiarch paths. Fedora puts the file at
+**`/usr/lib64/remmina/plugins/remmina-plugin-secret.so`** — verified in
+`remmina-plugins-secret-1.4.41-2.fc44`, where it is a separate package rather
+than part of `remmina-plugins-rdp`.
+
+**No path matches, and nothing reports it.** The leading `-` on each line tells
+systemd to tolerate a missing path, which is correct for the two architectures a
+given machine does not have — and is also what hides the case where *every* path
+is wrong. The unit starts clean. The plugin loads. The keyring prompt comes
+back, and the terminal waits for somebody to unlock a keyring.
+
+**The check that was printed above this section had the same fault**, which is
+why it is now a `find` over both directories. `ls /usr/lib/*/remmina/plugins/`
+cannot match `/usr/lib64/...` — the glob needs a directory *inside* `/usr/lib`.
+Tested against a mock tree holding both layouts on 2026-10-04: the old form
+found the Debian file only and exited as though it had looked everywhere. **So
+on Fedora the fix missed and the diagnostic agreed with it.**
+
+Until `D-A19` is fixed, add the Fedora path by hand on a Fedora terminal:
+
+```sh
+sudo systemctl edit encore-kiosk.service
+```
+
+```ini
+[Service]
+InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so
+```
+
+Then `sudo systemctl daemon-reload` and restart the terminal.
 
 ## It prompts for a password even though one is stored
 
@@ -438,6 +472,90 @@ Add `--port` if the target is not on 3389, and `--expect <fingerprint>` to ask
 whether a particular fingerprint is the one being presented.
 
 ---
+
+## Something is broken and the machine enforces SELinux
+
+Mostly Fedora and its relatives. Debian, Ubuntu and Raspberry Pi OS do not
+enforce SELinux, so this whole section is silent on those.
+
+```sh
+getenforce
+```
+
+**`Enforcing` on its own tells you nothing.** It is the normal state of a
+healthy Fedora machine, and the product's arrangement is permitted there — see
+below. Do not start changing policy because this printed `Enforcing`.
+
+### Rule it in or out in one step
+
+This is the only check here that cannot mislead you:
+
+```sh
+sudo setenforce 0        # reproduce the fault now
+sudo setenforce 1        # put it back, always
+```
+
+- **Behaviour changes** — SELinux is involved. Go to the denial log.
+- **Behaviour is identical** — SELinux is not your problem. Stop here and look
+  elsewhere in this file.
+
+Neither command edits policy and both are reversible. `setenforce 0` lasts until
+reboot, so a forgotten `setenforce 1` is not permanent — but put it back anyway.
+
+### Reading the denials
+
+```sh
+journalctl -b -g 'avc: *denied'
+```
+
+**This one needs no administrator** and was watched returning real denials on
+2026-10-04. Prefer it.
+
+The canonical tool needs root:
+
+```sh
+sudo ausearch -m AVC,USER_AVC,SELINUX_ERR,USER_SELINUX_ERR -ts boot
+```
+
+**Keep the `sudo`.** `/var/log/audit` is `0700 root:root`. Without it the
+command prints `Error opening /var/log/audit/audit.log (Permission denied)` and
+exits `1` — measured 2026-10-04 on Fedora 44 with `auditd` running. That is a
+clear failure rather than a quiet one, so it will not fool you, but you learn
+nothing about denials from it either.
+
+**An empty denial log is not proof.** The policy carries `dontaudit` rules that
+suppress denials with no log line at all — over a hundred reaching each of the
+domains this product's session can land in. If `setenforce 0` changed the
+behaviour but nothing is logged, that is the reason:
+
+```sh
+sudo semodule -DB        # turn the suppressions off
+# reproduce, then read the log again
+sudo semodule -B         # put them back
+```
+
+`journalctl -t setroubleshoot` is suggested by many guides and produces nothing
+on a stock Fedora — `setroubleshoot-server` is not installed by default.
+
+### What is already known
+
+**The product's own arrangement is permitted under enforcing SELinux**, measured
+against the live kernel on Fedora 44 on 2026-10-04: the identity's home under
+`/var/lib/encore`, the `PAMName=login` session, the unit file, and the script in
+`/usr/local/bin` all carry labels the policy accepts, and the transition is
+allowed even with `NoNewPrivileges=`. **The installer needs no SELinux step.**
+`docs/architecture/constraints.md` holds the measurements.
+
+**Do not relabel `/var/lib/encore` to a home type.** Specifically, do not run
+`semanage fcontext -a -t user_home_dir_t "/var/lib/encore(/.*)?"`. That is the
+one change known to be able to break a working terminal: it hangs a home label
+off a parent that is not a home root. The default label is already correct.
+
+**Nothing has been watched on a Fedora terminal yet.** Everything above is
+policy and labelling, not a running terminal. `R-1` is `intended` for the dnf
+family for exactly this reason. If you are converting a Fedora machine, the
+`setenforce 0` / `setenforce 1` comparison above on a first boot is the thing
+that would settle it — and the record would like to hear the result.
 
 ## The shape of a good debugging session here
 

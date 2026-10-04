@@ -680,7 +680,8 @@ so an adopter on an older interpreter gets a `SyntaxError` at the first run,
 which is a visible failure, not a misclassified one. The second-order effect,
 `socket.timeout` not being a `TimeoutError` below 3.10 and collapsing `5
 TIMEOUT` into `4 UNREACHABLE`, is unreachable for the same reason. 3.10 is four
-years old and every apt-family release in scope ships something newer.
+years old and every release in scope ships something newer on either family
+(Fedora 44 ships 3.14).
 
 **Why it was taken:** this is the same shape as D-024's accepted cost. The
 product tracks current releases and carries no compatibility handling, and
@@ -702,3 +703,64 @@ said the probe not depending on `.reason` would drop the floor to the syntactic
 3.10. It did, on the day the item was written. The other — measuring 3.12 and
 3.13 — is now moot, because the boundary it would have pinned down no longer
 exists.
+
+---
+
+## D-A19 — The keyring suppression is written in Debian paths and silently misses on Fedora
+**Severity: high, and it is the first defect D-036 bought. Found 2026-10-04.**
+
+**What:** `encore-kiosk.service:27-29` suppresses Remmina's secret plugin by
+making it unreachable, and it does so by naming three literal paths:
+
+```ini
+InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
+InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
+InaccessiblePaths=-/usr/lib/arm-linux-gnueabihf/remmina/plugins/remmina-plugin-secret.so
+```
+
+All three are **Debian multiarch** paths. **Fedora puts the file at
+`/usr/lib64/remmina/plugins/remmina-plugin-secret.so`** — measured 2026-10-04
+with `dnf repoquery -l remmina-plugins-secret` against Fedora 44
+(`remmina-plugins-secret-1.4.41-2.fc44`). None of the three lines can ever
+match on a dnf-family machine.
+
+**And the miss is silent by construction.** The leading `-` on each
+`InaccessiblePaths=` tells systemd to tolerate a path that does not exist. That
+is correct on apt — it is what lets one unit cover three architectures — and on
+Fedora it means all three lines are no-ops and the unit starts cleanly with the
+suppression simply absent. Nothing is logged, nothing fails, and the only
+symptom is the one `BACKLOG.md` item 8 records as **observed** on 2026-09-14:
+the client asks for a keyring to be unlocked, which an unattended terminal
+cannot answer, and the session stops in front of a child with a password
+prompt. **A terminal reporting healthy while not working is this project's
+oldest failure shape, and this is a new door into it.**
+
+**Why it matters more than its size:** `BACKLOG.md` item 16 states that
+`encore-kiosk.service` mentions no package manager and is therefore untouched
+by the second family. That is true of the *package manager* and false of the
+*distribution*: this is the one place in the whole product where the design
+reasoned from a distribution's layout rather than from a capability, and it is
+in the unit rather than the installer — the file item 16 expected not to open.
+It does not make the work L: it is one more line in a file, not a Fedora-only
+component, and the rest of `constraints.md` C-1's SELinux finding holds.
+
+**Why it was taken:** it was not taken. It was correct when written, for the
+only family that existed, and D-036 made it wrong on 2026-10-04 without anyone
+touching the file. That is the characteristic cost of widening a claimed
+platform: the defect arrives in code nobody edited.
+
+**What would repay it:** a fourth `InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so`
+would close it for Fedora, and keeping the `-` on all four keeps one unit
+working on both families. **It is worth asking whether path-naming is the right
+mechanism at all** — a list of literal paths is a claim about every
+distribution the product will ever run on, and it grows by one line per
+distribution with no way to notice a missing line. Whether Remmina can be told
+not to load the plugin, rather than having the file hidden from it, has never
+been investigated and would replace a growing list with one setting. Sizing and
+ordering are not decided here.
+
+**Status: the Fedora path is measured** (`dnf repoquery`, Fedora 44,
+2026-10-04). **That the suppression therefore fails to suppress on Fedora is
+read, not watched** — no terminal has ever been booted on Fedora, so the
+keyring prompt has not been seen there. The apt-side observation it would
+reproduce is `docs/tests.md` and `BACKLOG.md` item 8, 2026-09-14.

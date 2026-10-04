@@ -27,7 +27,41 @@ strongest argument in this file and it was quietly becoming false.
 
 The "version seen working" column is one observation: a clean Ubuntu 26.04
 x86_64 VM on 2026-09-23. It is not a support matrix and nothing else has ever
-been tried.
+been tried. **Nothing in it has been seen working on Fedora** — D-036 claimed
+the dnf family on 2026-10-04 and no terminal has been booted there.
+
+## The same parts, two package names each — added 2026-10-04 (D-036)
+
+Every part above is present on both families; **five of the seven packages
+`encore-install.sh:91-92` asks for carry the identical name and two do not.**
+This table exists so the difference lives in the record rather than only in the
+installer, and so nobody has to re-derive it.
+
+| Part | apt name | dnf name |
+|---|---|---|
+| Remmina | `remmina` | `remmina` |
+| Remmina's RDP plugin | `remmina-plugin-rdp` | **`remmina-plugins-rdp`** |
+| compositor | `cage` | `cage` |
+| `chvt` | `kbd` | `kbd` |
+| sound server | `pipewire` | `pipewire` |
+| PulseAudio shim | `pipewire-pulse` | **`pipewire-pulseaudio`** |
+| session manager | `wireplumber` | `wireplumber` |
+
+**The capture tool item 7 needs is a third difference, and it is the one that
+will be missed**, because it is not in the installer yet and so will be written
+fresh against one family: it is **`freerdp3-x11` on Ubuntu** and **`freerdp` on
+Fedora**. Verified on Fedora 44, 2026-10-04: `freerdp-2:3.31.1-1.fc44` provides
+`/usr/bin/xfreerdp` and `/usr/bin/wlfreerdp`. Whatever ships item 7's capture
+step must carry both names from the first line it is written, not acquire the
+second one later — and it also has to be removed again by
+`encore-uninstall.sh`, under both names, or C-3's clean undo is broken on one
+family and not the other.
+
+**Remmina's secret plugin is a separate subpackage on Fedora**
+(`remmina-plugins-secret`), which the installer does not ask for and which may
+or may not already be on an adopter's machine. That is not a reason to relax
+the suppression — see `debt.md` D-A19, where the suppression is measured to
+miss on Fedora for an unrelated reason.
 
 **`kbd` was added to this table on 2026-09-23.** It is installed by
 `encore-install.sh:83` and the unit depends on `chvt` at `:16` and `:18`. It
