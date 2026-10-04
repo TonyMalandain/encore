@@ -22,7 +22,7 @@ merely renamed.
 | Mandatory access control | **no policy of our own, on either family.** SELinux enforcing is in scope and costs nothing; see the paragraph below |
 | Init | systemd only, **and ≥ 254** — `RestartSteps=` / `RestartMaxDelaySec=` arrived there and ADR-0007 depends on them. Older systemd ignores them silently and gives flat retries. |
 | Python | CPython 3, standard library only, **and ≥ 3.10** — see the paragraph below. Below it `encore-probe.py` does not import at all. **Corrected 2026-09-23 down from 3.14**, which was derived from a defect since fixed. |
-| Hardware | none assumed — 32-bit and ARM must be considered in scope |
+| Hardware | none assumed — 32-bit and ARM must be considered in scope, **and as of 2026-10-04 no instruction set is refused.** `encore-install.sh:46` used to `die "unsupported architecture"` on anything but `x86_64`, `aarch64` and `armv7l`; that refusal was an artefact of constructing a Debian multiarch path and was never a product limit. The product manager ruled it out on 2026-10-04 as a deliberate behaviour change — see `debt.md` D-A20. The product now neither promises nor refuses an unusual architecture |
 | Host distribution | out of scope (D-002) — **and this row no longer means what it said.** It was written when the author's host was a distribution we did not support; since D-036 the author's host is Fedora, which *is* a supported terminal family. The machine is still out of scope, but now because of what it *is* — the RDP target — and not because of what it runs. Nothing may be installed on it to test the dnf side |
 
 **SELinux enforcing is permitted, and it needs nothing from us. Measured

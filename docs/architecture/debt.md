@@ -706,11 +706,17 @@ exists.
 
 ---
 
-## D-A19 — The keyring suppression is written in Debian paths and silently misses on Fedora
-**Severity: high, and it is the first defect D-036 bought. Found 2026-10-04.**
+## D-A19 — The keyring suppression is written in Debian paths, at two sites, and one of them blocks Fedora conversion outright
+**Severity: highest of the new items. Raised 2026-10-04, the same day it was
+filed, when the second site was found. It is the first defect D-036 bought, and
+it is a blocker rather than a degradation.**
 
-**What:** `encore-kiosk.service:27-29` suppresses Remmina's secret plugin by
-making it unreachable, and it does so by naming three literal paths:
+**What: the same Debian multiarch path is constructed twice, in two files, for
+two different purposes. Neither can match on a dnf-family machine.**
+
+**Site 1 — the unit, and the milder symptom.** `encore-kiosk.service:28-30`
+suppresses Remmina's secret plugin at *runtime* by making it unreachable, and
+it does so by naming three literal paths:
 
 ```ini
 InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
@@ -718,49 +724,186 @@ InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-sec
 InaccessiblePaths=-/usr/lib/arm-linux-gnueabihf/remmina/plugins/remmina-plugin-secret.so
 ```
 
-All three are **Debian multiarch** paths. **Fedora puts the file at
-`/usr/lib64/remmina/plugins/remmina-plugin-secret.so`** — measured 2026-10-04
-with `dnf repoquery -l remmina-plugins-secret` against Fedora 44
-(`remmina-plugins-secret-1.4.41-2.fc44`). None of the three lines can ever
-match on a dnf-family machine.
+**Site 2 — the installer, and the blocking symptom.**
+`encore-install.sh:42-48` computes the same path from `uname -m`:
 
-**And the miss is silent by construction.** The leading `-` on each
-`InaccessiblePaths=` tells systemd to tolerate a path that does not exist. That
-is correct on apt — it is what lets one unit cover three architectures — and on
-Fedora it means all three lines are no-ops and the unit starts cleanly with the
-suppression simply absent. Nothing is logged, nothing fails, and the only
-symptom is the one `BACKLOG.md` item 8 records as **observed** on 2026-09-14:
-the client asks for a keyring to be unlocked, which an unattended terminal
-cannot answer, and the session stops in front of a child with a password
-prompt. **A terminal reporting healthy while not working is this project's
-oldest failure shape, and this is a new door into it.**
+```sh
+case "$(uname -m)" in
+    x86_64)  TRIPLET=x86_64-linux-gnu ;;
+    aarch64) TRIPLET=aarch64-linux-gnu ;;
+    armv7l)  TRIPLET=arm-linux-gnueabihf ;;
+    *)       die "unsupported architecture: $(uname -m)" ;;
+esac
+SECRET_PLUGIN="/usr/lib/$TRIPLET/remmina/plugins/remmina-plugin-secret.so"
+```
+
+`SECRET_PLUGIN` is then handed to `systemd-run -p "InaccessiblePaths=-$SECRET_PLUGIN"`
+at `:173` — the step that writes the RDP password into the profile, which is
+the one moment the suppression has to work or the client demands a keyring.
+
+**Fedora puts the file at `/usr/lib64/remmina/plugins/remmina-plugin-secret.so`**
+— measured 2026-10-04 with `dnf repoquery -l remmina-plugins-secret` against
+Fedora 44 (`remmina-plugins-secret-1.4.41-2.fc44`). No Debian triplet appears
+anywhere in a Fedora filesystem, so **every one of the four constructions
+misses.**
+
+**The miss is silent by construction at both sites, and the two consequences
+are not the same.** The leading `-` tells systemd to tolerate a path that does
+not exist. That is correct on apt — it is what lets one unit cover three
+architectures — and on Fedora it makes the suppression a no-op with nothing
+logged:
+
+- **Site 1 gives a working terminal that prompts for a keyring.** The unit
+  starts cleanly and the suppression is simply absent, so the client asks for a
+  keyring no unattended terminal can unlock, and the session stops in front of
+  a child with a password prompt. That is the symptom `BACKLOG.md` item 8
+  records as **observed** on 2026-09-14. A terminal reporting healthy while not
+  working is this project's oldest failure shape, and this is a new door into
+  it.
+- **Site 2 gives a conversion that cannot complete.** With the plugin
+  unsuppressed, `remmina --update-profile … --set-option password=` does not
+  store the password, and the installer's own guard catches it: `:183-184`
+  greps the profile and runs `die "no password stored in the profile"`. **The
+  install fails and stops.** No terminal exists to degrade.
+
+**So this item is not "a prompt comes back". It is "the install fails", and
+item 16 is undeliverable without it.** That is why the plan fixes both sites in
+one change rather than treating the second as a follow-on.
+
+**Worth recording how it was found, because the lesson is about reading rather
+than about Fedora.** The site with the *milder* symptom was found first, by the
+architect, from the unit file. **The blocking site sat eight lines into the
+installer the same reader had already opened, and was missed** — along with the
+`systemd-run` call 125 lines further down that consumes it. It was found by the
+senior engineer while planning item 16 and confirmed by the product manager
+before it reached this file. One grep for the plugin's filename across the
+whole tree would have returned both on the first day. The defect was findable
+in one command and was instead found in two passes by two people.
 
 **Why it matters more than its size:** `BACKLOG.md` item 16 states that
 `encore-kiosk.service` mentions no package manager and is therefore untouched
 by the second family. That is true of the *package manager* and false of the
-*distribution*: this is the one place in the whole product where the design
-reasoned from a distribution's layout rather than from a capability, and it is
-in the unit rather than the installer — the file item 16 expected not to open.
-It does not make the work L: it is one more line in a file, not a Fedora-only
-component, and the rest of `constraints.md` C-1's SELinux finding holds.
+*distribution*. These two sites are the only places in the whole product where
+the design reasoned from a distribution's filesystem layout rather than from a
+capability — everything else is written in terms both families carry, which is
+exactly what `overview.md` claims and what made D-036 cheap. **It still does
+not make the work L:** two files, no Fedora-only component, no conditional on
+the package manager, and `constraints.md` C-1's SELinux finding is unaffected.
 
-**Why it was taken:** it was not taken. It was correct when written, for the
-only family that existed, and D-036 made it wrong on 2026-10-04 without anyone
-touching the file. That is the characteristic cost of widening a claimed
-platform: the defect arrives in code nobody edited.
+**Why it was taken:** it was not taken. Both sites were correct when written,
+for the only family that existed, and D-036 made them wrong on 2026-10-04
+without anyone touching either file. That is the characteristic cost of
+widening a claimed platform — the defect arrives in code nobody edited — and
+here it arrived in the step that the installer's own guard protects, which is
+the one piece of luck in the item: site 2 fails loudly.
 
-**What would repay it:** a fourth `InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so`
-would close it for Fedora, and keeping the `-` on all four keeps one unit
-working on both families. **It is worth asking whether path-naming is the right
-mechanism at all** — a list of literal paths is a claim about every
-distribution the product will ever run on, and it grows by one line per
-distribution with no way to notice a missing line. Whether Remmina can be told
-not to load the plugin, rather than having the file hidden from it, has never
-been investigated and would replace a growing list with one setting. Sizing and
-ordering are not decided here.
+**What repays it, and it is planned — `docs/plans/fedora-dnf-family.md`, steps
+2, 3 and 5, written by the senior engineer on 2026-10-04.** Two halves, and the
+second one is the part worth defending at this level:
+
+- **The installer stops computing the path and asks the machine for it** — a
+  `find` over `/usr/lib` and `/usr/lib64`, once, feeding the password step.
+  `TRIPLET`, the `case` and `SECRET_PLUGIN` all go. The installer then makes no
+  claim about any distribution's layout, which is the D-A19 root cause removed
+  rather than extended.
+- **The unit keeps literal paths, and the installer checks they cover the
+  machine.** Step 3 adds the `/usr/lib64` line; step 5 adds a loop that greps
+  the installed unit for every path the `find` actually located and `die`s with
+  the exact line to add if one is missing. **This is the half that repays the
+  class rather than the instance.** The item's own complaint was that a list of
+  literal paths grows by one line per distribution *with no way to notice a
+  missing line* — the check is that way. A layout nobody has met now produces a
+  loud failure at install time, on the machine, naming the fix, instead of a
+  terminal that converts cleanly and then shows a child a keyring prompt. It
+  converts the silent failure mode into a loud one, which is the thing this
+  project needs more than it needs any particular path.
+
+It is also, per the plan, **the only part of this ticket that can be watched
+without a Fedora machine** — which matters, because everything else about
+D-036 is currently claimed and unobserved.
+
+**Two things are settled about the mechanism, and one is not.**
+
+- **Closed negative, 2026-10-04: Remmina cannot be told not to load the
+  plugin.** This item previously asked whether a configuration setting could
+  replace the growing path list. The senior engineer established that no such
+  preference exists; the maintainer said in 2019 that a hidden option could be
+  added and it never was; and upstream documents exactly two mechanisms —
+  uninstall the package, or hide the `.so`. Uninstalling is closed by R-11 and
+  D-007, which forbid the product changing software the machine already had.
+  **So hiding the file is not a shortcut this product took. It is the only
+  mechanism available**, and the list of paths is a consequence of that, not a
+  design preference. Nobody should reopen this.
+- **Still open, and deliberately unplanned: whether the installer should write
+  a `encore-kiosk.service.d/` drop-in** from what it discovered, instead of the
+  unit shipping literal paths at all. The planned repair leaves the unit
+  asserting paths and adds a check that the assertion is true on this machine;
+  a drop-in would mean the unit asserts nothing and the one discovery feeds
+  both the password step and the runtime suppression. **The check makes this
+  question non-urgent, not closed** — it removes the silence, which was the
+  harm, and leaves the duplication, which is only a cost. **It is not a
+  ticket-sized question**, because a drop-in is a new installed artifact:
+  `encore-uninstall.sh` has to remove it and C-3's clean-undo promise depends
+  on that, which makes it a contract across three files and an architecture
+  question rather than an implementation one. The record already carries two
+  items of exactly that shape, D-A8 and I-7 — an artifact written once at
+  install that nothing re-checks and the undo must remember — so the pull
+  against a third is real and not merely conservatism. Named here so it is not
+  lost. Not sized and not ordered.
 
 **Status: the Fedora path is measured** (`dnf repoquery`, Fedora 44,
-2026-10-04). **That the suppression therefore fails to suppress on Fedora is
-read, not watched** — no terminal has ever been booted on Fedora, so the
-keyring prompt has not been seen there. The apt-side observation it would
-reproduce is `docs/tests.md` and `BACKLOG.md` item 8, 2026-09-14.
+2026-10-04), and **both construction sites are read directly from the files**
+(`encore-kiosk.service:28-30`; `encore-install.sh:42-48`, `:173`, `:183-184`).
+**That the suppression therefore fails on Fedora is read, not watched** — no
+terminal has ever been booted on Fedora, so neither the failed install nor the
+keyring prompt has been seen there. The apt-side observation the runtime
+symptom would reproduce is `docs/tests.md` and `BACKLOG.md` item 8, 2026-09-14.
+
+---
+
+## D-A20 — The installer refuses three-quarters of the architectures R-2 claims, and the refusal is an artefact
+**Severity: moderate on consequence, high on what it says about the record.
+Filed 2026-10-04. Being removed in the same change as D-A19.**
+
+**What:** `encore-install.sh:46` ends the architecture `case` with
+`die "unsupported architecture: $(uname -m)"`. Anything that is not `x86_64`,
+`aarch64` or `armv7l` is refused before a single package is installed.
+
+**This was never a product limit.** R-2 says no particular hardware is
+required, and `constraints.md` C-1 records "32-bit and ARM must be considered
+in scope". Nothing in the product record has ever restricted the instruction
+set. The refusal exists for one reason and it is a mechanism reason: **a Debian
+multiarch triplet had to be constructed, the constructor only knew three, and
+the fallback was made fatal.** That is mechanism leaking out of a script and
+being enforced as policy on a reader — the product refuses a machine it claims
+to support, and says "unsupported architecture" while doing it, which is a
+sentence no requirement in the record authorises.
+
+**D-036 made the gap wider and visible.** Fedora builds for `ppc64le`, `s390x`
+and `riscv64` in addition to the three the `case` knows. On at least two of
+those an adopter would be handed a flat refusal for a machine R-2 claims. It
+was equally wrong on the apt side and nobody noticed, because nobody had an
+unusual machine to try.
+
+**The ruling, and it is the product manager's, taken 2026-10-04: the refusal is
+not to be preserved.** Removing the triplet computation (see D-A19) removes the
+`case`, and with it this `die`. **That is a deliberate behaviour change, not a
+tidy-up**, and it is recorded here so nobody restores the line as a safety
+check later. Replacing the computation with a discovery means the product stops
+claiming anything about exotic architectures **in either direction** — it
+neither promises one will work nor refuses to try. An adopter on `riscv64` gets
+whatever the packages and the compositor actually do on that machine, which is
+the honest answer and the one R-2 already implies.
+
+**What this costs:** a machine that would have been refused in one legible line
+at the top of the installer may now fail later and less clearly, somewhere in
+package installation or in the compositor. That is accepted: a late honest
+failure on a machine nobody has tried is better than an early false one on a
+machine the record claims. **Nothing has ever been run on any architecture
+other than `x86_64`** (`docs/tests.md`), so both the old refusal and the new
+permission are claims, not observations — the difference is that the new one
+matches what the product record says.
+
+**What would repay it:** nothing in the code. This is a record item: R-2's
+breadth is now actually true of the installer, and the thing to watch is that
+the first unusual machine anyone tries produces a failure somebody can read.

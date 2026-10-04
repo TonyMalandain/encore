@@ -18,9 +18,15 @@ two of seven package names differ. The runner, the unit, the target, the
 profile and the uninstaller name no package manager at all. A system assembled
 from parts that every distribution already carries pays out exactly here: the
 second family was a change to the step that fetches software and to nothing
-that decides behaviour. **Where it did not pay out is the one place the design
-did assume a distribution** — the unit's keyring suppression is written in
-Debian multiarch paths and silently misses on Fedora; see `debt.md` D-A19.
+that decides behaviour. **Where it did not pay out is the two places the design
+did assume a distribution, and they are the same assumption written twice** —
+Remmina's secret plugin is hidden by naming a Debian multiarch path, once in
+the unit and once computed from `uname -m` in the installer, and neither can
+match on Fedora. The installer site is the serious one: it is the step that
+writes the password, so the password is not stored and the install **fails and
+stops**. The unit site only degrades a running terminal into asking for a
+keyring. See `debt.md` D-A19, and D-A20 for the architecture refusal that came
+with the same `case` statement.
 
 **Names corrected 2026-09-23.** Everything below used to be called
 `kiosk.target` / `remmina-kiosk.*` / `/var/lib/kiosk`. D-022 and D-023 renamed
