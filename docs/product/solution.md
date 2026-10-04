@@ -85,10 +85,22 @@ written procedure. Nothing here has been watched working on an old machine.
   out as a policy and turned away machines this requirement claims. Fedora also
   builds for `ppc64le`, `s390x` and `riscv64`, and that line would have refused
   two of them. The repair finds the plugin instead of computing its path, so the
-  product now says nothing about unusual processors **in either direction**: it
-  neither promises them nor refuses them. The honest reading of this requirement
-  was always the weaker one — nothing is assumed, and nothing is tested beyond
-  the one Mac Mini and a virtual machine.
+  product no longer refuses a machine for its processor, **and still refuses a
+  machine whose library layout the unit does not name.** `R-2`'s cost is reduced,
+  not eliminated — this note first claimed the product now "says nothing about
+  unusual processors in either direction", which was too strong and is corrected
+  here on 2026-10-04, the same day it was written. The refusal was relocated, not
+  ended: a Debian machine on a fourth processor has a fourth multiarch directory,
+  so the path the installer finds is one the unit does not list, and the
+  conversion still stops. What changed is that the refusal is now **conditional
+  and true** rather than unconditional and wrong — it rests on whether the
+  keyring plugin can actually be hidden on that machine, which is a fact that
+  bears on whether the product works there, instead of on a processor name, which
+  is not. The message changed with it, from `unsupported architecture` — which
+  this requirement authorises nobody to say — to the exact path and the line that
+  would fix it. The honest reading of this requirement was always the weaker one:
+  nothing is assumed, and nothing is tested beyond the one Mac Mini and a virtual
+  machine.
 
 ### R-3 — The machine being connected to is untouched and unconstrained
 - **Serves:** the owner of the machine being connected to, who "asked for

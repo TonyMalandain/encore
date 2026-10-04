@@ -851,6 +851,90 @@ D-036 is currently claimed and unobserved.
   against a third is real and not merely conservatism. Named here so it is not
   lost. Not sized and not ordered.
 
+### The coverage check fails late, and that is an open question — 2026-10-04
+
+**Repaid, with one thing left open that is not about Fedora.** Steps 2, 3 and 5
+shipped (`8827dd6`, `5d56939`): the installer finds the plugin at `:249` instead
+of computing a triplet, the unit names `/usr/lib64` at `:38`, and the coverage
+check at `:282-285` refuses to finish when the unit misses a path the machine
+actually has. **The silent failure mode is gone, which was the harm.** What
+remains is *when* the loud one fires.
+
+**Verified order in the shipped file:**
+
+| line | what happens |
+|---|---|
+| `:144` | packages installed — the earliest the `find` can truthfully run (`5d56939`) |
+| `:152` | the `encore` identity is created |
+| `:192` | the profile is written |
+| `:249` | the `find` locates the machine's plugin paths |
+| `:253` | **the RDP password is stored** |
+| `:271` | the unit is copied to `/etc/systemd/system/` |
+| `:282` | the coverage check runs, and dies |
+
+So a machine with a layout the unit does not name is **converted most of the
+way and then refused**: it keeps a system identity, a connection profile and a
+stored credential, and the person running it has no reason to expect any of
+that from a message about a missing path. `encore-uninstall.sh` is what cleans
+it up, and nothing in the failure message says so.
+
+**The credential is the part that matters, and it is not merely untidy.** The
+identity and the profile are files, and deleting files is what the undo does.
+The password is a secret that has been handed to `remmina` on a `systemd-run`
+command line — which is D-A12, the item that records the password reaching a
+process list and possibly the journal. A conversion that fails *after* `:253`
+has paid D-A12's full cost for a terminal that will never exist.
+
+**The check does not need to be there.** `install -m 644` at `:271` has just
+overwritten `/etc/systemd/system/encore-kiosk.service` **with
+`$HERE/encore-kiosk.service`**, so at `:282` the two files are byte-identical by
+construction. The check is grepping a file whose content it dictated eleven
+lines earlier. It cannot detect a hand-edited unit, a stale version from a
+previous install, or anything else about the machine's prior state, because
+`install` destroyed that evidence at `:271`. **Reading the installed copy rather
+than the source copy therefore buys no information at all**, and pays for it
+with the identity, the profile and the stored password. `$HERE` is set at `:19`
+and the source copy is present from the first line.
+
+**The earliest it could run is immediately after the packages step at `:144`** —
+the `find` needs the packages and nothing else, so the find and the check move
+together as one block, before `echo "==> user"`. That would leave a refused
+machine holding installed packages and nothing else.
+
+**What this does not buy, so that nobody oversells it:** the password is
+*prompted* at `:117`, before the packages step, so the person has typed it
+either way. The gain is that it is never *stored* and never reaches a command
+line — D-A12's exposure, not the typing.
+
+**Two things stop this being a clear call, which is why it is recorded here and
+not fixed:**
+
+- **Neither copy is the complete answer, and nobody has said so.** A grep of the
+  unit file misses any `InaccessiblePaths=` in a drop-in under
+  `/etc/systemd/system/encore-kiosk.service.d/`. The only complete check is the
+  effective merged value — `systemctl show -p InaccessiblePaths
+  encore-kiosk.service`, which needs `daemon-reload` first and is therefore
+  *later* than the check already is. So the real fork is **early and
+  approximate** against **late and exact**, and the current code has chosen
+  late *without* being exact, which is the one combination with nothing to
+  recommend it.
+- **An early source-copy check can refuse a machine that would have worked.**
+  If an administrator has already written a drop-in naming their layout, the
+  early grep misses it and dies on a covered machine. That is a false refusal,
+  and it is the same shape as the risk ADR-0008 already tracks — our gate being
+  stricter than the thing it gates, stopping a healthy terminal for ever, the
+  expensive direction. It is narrow today, because `docs/troubleshooting.md`
+  now tells people not to hand-edit the unit, but it is the reason this is a
+  contract question and not a line move.
+
+**And the equivalence is a property of the sequence, not an invariant.** The
+source and installed copies are identical only because the installer *copies*
+the unit. If it ever *composes* it — which is exactly the
+`encore-kiosk.service.d/` drop-in question still open above — then `$HERE` stops
+being the truth and a source-copy check becomes wrong. **Whichever way this
+goes, the two questions have to be answered together**, or the drop-in work will
+silently invalidate the check.
+
 **Status: the Fedora path is measured** (`dnf repoquery`, Fedora 44,
 2026-10-04), and **both construction sites are read directly from the files**
 (`encore-kiosk.service:28-30`; `encore-install.sh:42-48`, `:173`, `:183-184`).
@@ -861,49 +945,92 @@ symptom would reproduce is `docs/tests.md` and `BACKLOG.md` item 8, 2026-09-14.
 
 ---
 
-## D-A20 — The installer refuses three-quarters of the architectures R-2 claims, and the refusal is an artefact
+## D-A20 — The architecture refusal was an artefact, and removing it relocated the refusal rather than ending it
 **Severity: moderate on consequence, high on what it says about the record.
-Filed 2026-10-04. Being removed in the same change as D-A19.**
+Filed 2026-10-04 and **corrected the same day**, after review found this entry
+claimed more than the code delivers. Read the correction before acting on this
+item: it is the entry somebody will open in a year before deciding whether to
+restore or remove a refusal, and the first version of it would have told them
+the problem was solved when it is only moved.**
 
-**What:** `encore-install.sh:46` ends the architecture `case` with
-`die "unsupported architecture: $(uname -m)"`. Anything that is not `x86_64`,
-`aarch64` or `armv7l` is refused before a single package is installed.
+**What it was:** `encore-install.sh:46` ended the architecture `case` with
+`die "unsupported architecture: $(uname -m)"`. Anything that was not `x86_64`,
+`aarch64` or `armv7l` was refused before a single package was installed.
 
-**This was never a product limit.** R-2 says no particular hardware is
+**That was never a product limit.** R-2 says no particular hardware is
 required, and `constraints.md` C-1 records "32-bit and ARM must be considered
 in scope". Nothing in the product record has ever restricted the instruction
-set. The refusal exists for one reason and it is a mechanism reason: **a Debian
-multiarch triplet had to be constructed, the constructor only knew three, and
-the fallback was made fatal.** That is mechanism leaking out of a script and
-being enforced as policy on a reader — the product refuses a machine it claims
-to support, and says "unsupported architecture" while doing it, which is a
-sentence no requirement in the record authorises.
+set. The refusal existed for one reason and it was a mechanism reason: **a
+Debian multiarch triplet had to be constructed, the constructor only knew
+three, and the fallback was made fatal.** That is mechanism leaking out of a
+script and being enforced as policy on a reader — the product refused a machine
+it claims to support, and said "unsupported architecture" while doing it, which
+is a sentence no requirement in the record authorises.
 
 **D-036 made the gap wider and visible.** Fedora builds for `ppc64le`, `s390x`
-and `riscv64` in addition to the three the `case` knows. On at least two of
-those an adopter would be handed a flat refusal for a machine R-2 claims. It
-was equally wrong on the apt side and nobody noticed, because nobody had an
-unusual machine to try.
+and `riscv64` in addition to the three the `case` knew. It was equally wrong on
+the apt side and nobody noticed, because nobody had an unusual machine to try.
 
 **The ruling, and it is the product manager's, taken 2026-10-04: the refusal is
-not to be preserved.** Removing the triplet computation (see D-A19) removes the
-`case`, and with it this `die`. **That is a deliberate behaviour change, not a
-tidy-up**, and it is recorded here so nobody restores the line as a safety
-check later. Replacing the computation with a discovery means the product stops
-claiming anything about exotic architectures **in either direction** — it
-neither promises one will work nor refuses to try. An adopter on `riscv64` gets
-whatever the packages and the compositor actually do on that machine, which is
-the honest answer and the one R-2 already implies.
+not to be preserved.** The `case`, the triplet and the `die` are gone, replaced
+by a `find` (`encore-install.sh:249`). **That was a deliberate behaviour change,
+not a tidy-up**, and it is recorded here so nobody restores the line as a
+safety check later.
 
-**What this costs:** a machine that would have been refused in one legible line
-at the top of the installer may now fail later and less clearly, somewhere in
-package installation or in the compositor. That is accepted: a late honest
-failure on a machine nobody has tried is better than an early false one on a
-machine the record claims. **Nothing has ever been run on any architecture
-other than `x86_64`** (`docs/tests.md`), so both the old refusal and the new
-permission are claims, not observations — the difference is that the new one
-matches what the product record says.
+### What actually changed, corrected 2026-10-04
 
-**What would repay it:** nothing in the code. This is a record item: R-2's
-breadth is now actually true of the installer, and the thing to watch is that
-the first unusual machine anyone tries produces a failure somebody can read.
+**This entry first said the product "stops claiming anything about exotic
+architectures in either direction" and that "an adopter on `riscv64` gets
+whatever the packages and the compositor actually do on that machine". That is
+wrong, and wrong in the direction that matters — it describes the problem as
+solved when it is relocated.**
+
+Traced through the shipped code on a Debian `riscv64` machine: the plugin
+installs at `/usr/lib/riscv64-linux-gnu/remmina/plugins/remmina-plugin-secret.so`;
+the `find` at `:249` locates it; the coverage check at `:282-285` greps
+`encore-kiosk.service`, whose list at `:35-38` names three Debian triplets and
+`/usr/lib64` and **not** that path; and the install dies. **The fourth-triplet
+machine is still turned away.**
+
+**So the refusal moved; it did not end.** It moved from *an unconditional list
+of three processor names* to *a condition on the one thing that genuinely
+matters* — whether this machine's plugin path is named in the unit. That is a
+real improvement and it is what the plan intended:
+
+- the old refusal was **unconditional and wrong**: it turned away a machine for
+  its processor name, a fact that has no bearing on whether the product works
+  there;
+- the new refusal is **conditional and true**: it turns away a machine only
+  when the unit genuinely cannot hide that machine's plugin, which is a fact
+  about whether the terminal would work;
+- and the message changed from `unsupported architecture` — which R-2 does not
+  authorise anybody to say — to a named path and the exact line to add.
+
+**R-2's cost is reduced, not eliminated.** The honest sentence is that the
+product no longer refuses a machine for its processor, and still refuses a
+machine whose library layout the unit does not name. The two overlap heavily in
+practice, because a new processor on a Debian-family system means a new
+multiarch triplet, which means a path the unit does not have. **A fifth layout
+is a one-line change to the unit and the installer now says which line** — that
+is the whole of the improvement, and it is enough, but it is not "says nothing
+in either direction".
+
+**The same overclaim is in `8827dd6`'s commit message.** That is history and it
+stays. The record carries the correction rather than pretending the claim was
+never made — which is the same discipline C-1 applies to the Python floor.
+
+**Still true, and unaffected by the correction:** **nothing has ever been run on
+any architecture other than `x86_64`** (`docs/tests.md`), so the old refusal,
+the new condition and R-2's breadth are all claims rather than observations.
+The difference is that the new one is a claim about something that matters.
+
+**What would repay what is left:** nothing in `encore-install.sh`. Two things
+elsewhere, neither of them scheduled here:
+
+- **The unit's path list is still a list**, so "a fifth layout costs one line"
+  is only true for somebody who has a machine to discover it on. D-A19's open
+  drop-in question is the structural answer and is deliberately unplanned.
+- **The refusal's timing is the live question**, and it is a bigger one than
+  this item — see the ordering question under D-A19 and in `NOTES.md`,
+  2026-10-04. A machine turned away by the coverage check is turned away
+  *after* its identity, its profile and the RDP password have been written.

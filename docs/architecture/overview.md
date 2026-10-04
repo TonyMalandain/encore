@@ -13,20 +13,37 @@ cost almost nothing — which is the point worth recording.** D-036 added the dn
 family as a second claimed platform, and the reason that was cheap is that this
 sentence was already the weaker claim: the *breadth* was there from the start,
 because nothing in the design was ever reasoned from a package manager. **Only
-the installer was narrow** — four lines of `encore-install.sh` name `apt`, and
-two of seven package names differ. The runner, the unit, the target, the
-profile and the uninstaller name no package manager at all. A system assembled
-from parts that every distribution already carries pays out exactly here: the
-second family was a change to the step that fetches software and to nothing
-that decides behaviour. **Where it did not pay out is the two places the design
-did assume a distribution, and they are the same assumption written twice** —
-Remmina's secret plugin is hidden by naming a Debian multiarch path, once in
-the unit and once computed from `uname -m` in the installer, and neither can
-match on Fedora. The installer site is the serious one: it is the step that
-writes the password, so the password is not stored and the install **fails and
-stops**. The unit site only degrades a running terminal into asking for a
-keyring. See `debt.md` D-A19, and D-A20 for the architecture refusal that came
-with the same `case` statement.
+the installer was narrow**, and it was narrow in one place: the step that
+fetches software. The runner, the unit, the target, the profile and the
+uninstaller name no package manager at all. A system assembled from parts that
+every distribution already carries pays out exactly here — the second family
+was a change to the step that fetches software and to nothing that decides
+behaviour.
+
+**What the installer now does instead, since `8827dd6` on 2026-10-04:** it
+detects the family from capability rather than from a distribution name
+(`command -v apt-get`, then `command -v dnf`, else refuse), keeps one package
+list with the two divergent names as variables, and branches in exactly one
+`case`. **This paragraph used to say "four lines of `encore-install.sh` name
+`apt`" and that count is now meaningless** — the word appears fourteen times,
+nearly all of them in the comments explaining why apt is checked first. The
+figure was a measure of how little the installer assumed, and the right measure
+of that today is that **one `case` statement is the entire difference between
+the two families.**
+
+**Where the breadth did not pay out is the two places the design assumed a
+distribution, and they were the same assumption written twice** — Remmina's
+secret plugin was hidden by naming a Debian multiarch path, once in the unit
+and once computed from `uname -m` in the installer, and neither could match on
+Fedora. The installer site was the serious one: it is the step that writes the
+password, so the password was not stored and the install **failed and stopped**.
+The unit site only degraded a running terminal into asking for a keyring.
+**Both are repaired** — the installer asks the machine where the file is, and
+the unit names Fedora's path and is checked against the machine at install time.
+See `debt.md` D-A19 for what is left open (the check fails late, after the
+credential is stored) and D-A20 for the architecture refusal that came with the
+same `case` statement — **which was relocated rather than ended**, and D-A20
+carries the correction.
 
 **Names corrected 2026-09-23.** Everything below used to be called
 `kiosk.target` / `remmina-kiosk.*` / `/var/lib/kiosk`. D-022 and D-023 renamed
