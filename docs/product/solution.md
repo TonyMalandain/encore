@@ -55,14 +55,20 @@ again on 2026-09-23 on a machine converted from nothing by following the
 written procedure. Nothing here has been watched working on an old machine.
 `read in code` therefore means read, not observed.
 
-### R-1 — The terminal runs a Linux with the apt package manager, Wayland, and systemd
+### R-1 — The terminal runs a Linux with the apt or dnf package manager, Wayland, and systemd
 - **Serves:** the adopter reusing "old computers sitting in a cupboard" — this
   is the machine we can actually work with.
 - **Who it serves:** terminal administrator, prospective adopter.
 - **What they get:** they can tell in ten seconds whether their old machine
   qualifies.
-- **State:** `real`
-- **Evidence:** claimed only
+- **State:** `real` for the apt family; `intended` for dnf.
+- **Evidence:** apt family claimed only. **The dnf family is claimed and not
+  watched** — no terminal has ever been converted on Fedora, so every entry in
+  `docs/tests.md` is unrun there. D-036 widened this requirement on 2026-10-04
+  and recorded that it widened the claim ahead of the observation.
+- **Identical either way:** every other requirement in this document applies
+  unchanged on both families. Nothing is offered on one and withheld on the
+  other. Only the step that installs software differs.
 
 ### R-2 — No particular hardware is required
 - **Serves:** the cupboard of mismatched old machines the problem describes.
@@ -290,11 +296,15 @@ The number is retired and is never reused.
   up to accept sessions is the adopter's own business. Taking it on would mean
   supporting a second, unrelated environment and would double the surface a
   stranger has to trust.
-- **Not a Linux other than the apt family, and not a display stack other than
-  Wayland, and not a startup system other than systemd.** Supporting one
-  combination is what makes the product assessable in one sitting. Would be
-  reconsidered if someone other than the author ran a second combination end
-  to end.
+- **Not a Linux outside the apt and dnf families, and not a display stack other
+  than Wayland, and not a startup system other than systemd.** **Amended
+  2026-10-04 by D-036**, which added the dnf family — the apt-only form of this
+  entry named its own condition for being revisited, and the cost turned out to
+  be four lines of the installer and two package names. The display stack and
+  the startup system are unchanged and are not up for reconsideration: they are
+  what the product is built out of, not a packaging detail. A third package
+  manager would be reconsidered if someone other than the author ran it end to
+  end.
 - **Not responsible for anything inside the connection.** Establishing the
   connection is the whole job. Who signs in, whether they succeed, what their
   session looks like, whether several people can work at once, what files they
