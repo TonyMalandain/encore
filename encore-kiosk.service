@@ -24,10 +24,18 @@ Environment=WLOG_LEVEL=INFO
 # the capability rather than the compositor, so replacing cage does not change
 # the query an operator has to know.
 SyslogIdentifier=encore-kiosk
-#purposefully disable gnome-keyring for password storage
+# Keep the client away from gnome-keyring: a secret service wants a human to
+# unlock it and an unattended terminal has none. The leading `-` makes
+# systemd tolerate a path that is not on this machine, which is what lets one
+# unit cover three Debian multiarch layouts and Fedora's /usr/lib64 — and is
+# also what let ALL FOUR be wrong on Fedora in a unit that started perfectly
+# clean (D-A19). One path per line, `-` prefixed, nothing after it:
+# encore-install.sh greps these lines for every copy of the plugin the
+# machine actually has, and refuses to finish if one is not named.
 InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
 InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
 InaccessiblePaths=-/usr/lib/arm-linux-gnueabihf/remmina/plugins/remmina-plugin-secret.so
+InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so
 ExecStartPre=+/usr/bin/chvt 7
 ExecStart=/usr/bin/cage -s -- /usr/local/bin/encore-kiosk.sh
 ExecStopPost=+/usr/bin/chvt 1

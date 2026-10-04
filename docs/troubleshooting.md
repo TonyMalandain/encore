@@ -410,7 +410,7 @@ journalctl -t encore-kiosk -b --no-pager | grep -iE 'rdpsnd|audin|pulse|sound'
 | The line says | Cause |
 |---|---|
 | `wireplumber … is too old` | below 0.5 there is no profile support, so the sound server cannot be run without a session bus. The terminal works and is silent. |
-| `/usr/bin/… is missing` | the sound packages are not installed. `apt install pipewire pipewire-pulse wireplumber` |
+| `/usr/bin/… is missing` | the sound packages are not installed. On an apt machine `apt install pipewire pipewire-pulse wireplumber`; on a dnf machine `dnf install pipewire pipewire-pulseaudio wireplumber` — the PulseAudio shim is the one of the three whose name differs, and [`stack.md`](architecture/stack.md) keeps the full two-name table. |
 | `no PulseAudio-protocol socket` | the server started and did not finish coming up. The helpers' own complaints are above the line, in the same journal. |
 | `has no output device` | the server is running and the machine presented no sound output at all. Suspect the hardware or its driver. |
 | `XDG_RUNTIME_DIR is not set` | the session did not get a runtime directory. That contradicts how the unit is understood to work and is worth reporting rather than working around. |

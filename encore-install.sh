@@ -22,6 +22,54 @@ for f in encore-kiosk.sh encore-kiosk.service encore-kiosk.target \
     [ -f "$HERE/$f" ] || die "missing $f in $HERE — run encore-push.sh first"
 done
 
+# --- which package manager this machine has ---------------------------------
+
+# Asked as a capability, never as a distribution name (D-036): what this
+# machine can do, not what it calls itself. A list of distribution names has to
+# be extended for every derivative and is silent when it is short — which is
+# exactly how D-A19 happened, one file over.
+#
+# apt is checked first, so a machine carrying both wins for apt: R-1 is `real`
+# for apt and `intended` for dnf, and the ambiguous machine should get the
+# family this product has actually been watched working on. Fedora packages
+# `apt` and Debian packages `dnf`, so both directions are real.
+#
+# TWO places in this file branch on the family: this block, which holds every
+# family-dependent *name*, and the packages step, which holds the two commands.
+# A third is a defect — add a variable here instead.
+#
+# >>> family block — exercised off-target by docs/tests.md test 14a
+if command -v apt-get >/dev/null 2>&1; then
+    PKG_FAMILY=apt
+    RDP_PLUGIN=remmina-plugin-rdp
+    PULSE_SHIM=pipewire-pulse
+    SSH_UNIT=ssh
+    SSH_INSTALL="apt install openssh-server"
+elif command -v dnf >/dev/null 2>&1; then
+    # `dnf`, not `dnf5`: `dnf` exists across the whole family and is a symlink
+    # to dnf5 where dnf5 is what the machine has (Fedora 44, 2026-10-04).
+    PKG_FAMILY=dnf
+    RDP_PLUGIN=remmina-plugins-rdp
+    PULSE_SHIM=pipewire-pulseaudio
+    SSH_UNIT=sshd
+    SSH_INSTALL="dnf install openssh-server"
+else
+    die "no supported package manager found: this needs apt-get or dnf (R-1)"
+fi
+
+# Each of the seven names appears once. Two of them differ by family; the other
+# five are identical, measured on Fedora 44 on 2026-10-04 and recorded in
+# docs/architecture/stack.md. One list rather than one per family, so that
+# adding a package and forgetting a branch is impossible — the next addition is
+# already known to differ (item 7's capture tool).
+PACKAGES="remmina $RDP_PLUGIN cage kbd pipewire $PULSE_SHIM wireplumber"
+# <<< family block
+
+# Said out loud, before anything is installed: on a machine carrying both
+# package managers the choice above is a guess, and this is the line that makes
+# it a visible guess rather than a confusing failure three steps later.
+echo "==> package manager: $PKG_FAMILY"
+
 HOME_DIR=/var/lib/encore
 PROFILE="$HOME_DIR/.local/share/remmina/encore-kiosk.remmina"
 PREF="$HOME_DIR/.config/remmina/remmina.pref"
@@ -37,15 +85,17 @@ STARTED=$(date '+%Y-%m-%d %H:%M:%S')
 # without anyone having to remember.
 PREVIOUS_DEFAULT=$(systemctl get-default 2>/dev/null || echo "")
 
-# The keyring plugin must be out of reach while the password is set, or the
-# client insists on a keyring no unattended terminal can unlock.
-case "$(uname -m)" in
-    x86_64)  TRIPLET=x86_64-linux-gnu ;;
-    aarch64) TRIPLET=aarch64-linux-gnu ;;
-    armv7l)  TRIPLET=arm-linux-gnueabihf ;;
-    *)       die "unsupported architecture: $(uname -m)" ;;
-esac
-SECRET_PLUGIN="/usr/lib/$TRIPLET/remmina/plugins/remmina-plugin-secret.so"
+# The keyring plugin must be out of reach while the password is written, or the
+# client insists on a secret service that an unattended terminal has nobody to
+# unlock. Found, not computed: deriving the path from `uname -m` produced a
+# Debian multiarch path on every machine and matched nothing on Fedora, which
+# puts the file in /usr/lib64 (D-A19). Asking the machine where the file is
+# costs one find and makes no claim about any distribution's layout.
+#
+# Each path is prefixed `-` so systemd tolerates one that has gone; empty means
+# the plugin is not installed, so there is nothing to hide.
+SECRET_PLUGINS=$(find /usr/lib /usr/lib64 -name 'remmina-plugin-secret.so' \
+                 2>/dev/null | sed 's|^|-|' | tr '\n' ' ')
 
 # --- your way back in -------------------------------------------------------
 
@@ -60,7 +110,7 @@ if ! systemctl is-active --quiet ssh 2>/dev/null &&
     echo "only the remote session, so a text console (Ctrl+Alt+F1..F6) is"
     echo "your way in. SSH is easier:"
     echo
-    echo "    apt install openssh-server && systemctl enable --now ssh"
+    echo "    $SSH_INSTALL && systemctl enable --now $SSH_UNIT"
     echo
 fi
 
@@ -84,12 +134,26 @@ printf '\n'
 # --- 1. packages ------------------------------------------------------------
 
 echo "==> packages"
-apt-get update -qq
-# pipewire, pipewire-pulse and wireplumber are the sound server the runner
-# starts for itself inside the kiosk session. A minimal install may not carry
-# them, and without them the terminal is silent.
-apt-get install -y -qq remmina remmina-plugin-rdp cage kbd \
-                       pipewire pipewire-pulse wireplumber
+# The sound server the runner starts for itself inside the kiosk session —
+# the pipewire, PulseAudio-shim and wireplumber entries in $PACKAGES. A
+# minimal install may not carry them, and without them the terminal is
+# silent.
+#
+# Two commands, not one with a variable in it, so that what runs as root
+# on somebody's machine reads as a command. $PACKAGES is unquoted on
+# purpose: the word splitting is how seven names become seven arguments.
+#
+# There is no `dnf` line matching `apt-get update`, and adding one would
+# be a mistake: `apt-get install` does not refresh and fails outright on a
+# stale list, while dnf refreshes expired metadata as part of `install`.
+# A `dnf makecache` would buy nothing and add a network step that can fail
+# on its own — one unreachable optional repository would abort, under
+# `set -e`, a conversion that `dnf install` would have completed.
+case "$PKG_FAMILY" in
+    apt) apt-get update -qq
+         apt-get install -y -qq $PACKAGES ;;
+    dnf) dnf install -y -q $PACKAGES ;;
+esac
 
 # --- 2. the user the terminal runs as ---------------------------------------
 
@@ -170,7 +234,7 @@ COUNT=$(find "$HOME_DIR/.local/share/remmina" -maxdepth 1 -name '*.remmina' | wc
 
 echo "==> password"
 systemd-run --quiet --pipe --uid=encore \
-    -p "InaccessiblePaths=-$SECRET_PLUGIN" \
+    -p "InaccessiblePaths=$SECRET_PLUGINS" \
     -E HOME="$HOME_DIR" \
     remmina --update-profile "$PROFILE" \
             --set-option password="$RDP_PASS" >/dev/null 2>&1 \
@@ -189,6 +253,20 @@ echo "==> units"
 install -m 755 "$HERE/encore-kiosk.sh" /usr/local/bin/encore-kiosk.sh
 install -m 644 "$HERE/encore-kiosk.service" "$HERE/encore-kiosk.target" \
         /etc/systemd/system/
+
+# The unit hides the plugin by naming literal paths, and the leading `-` on
+# each tells systemd to tolerate a path that is not there. That is what lets
+# one unit cover several layouts — and it is also what hid every path being
+# wrong on Fedora, in a unit that started perfectly clean (D-A19). So the
+# coverage is checked here, on the machine, where it can be asked rather than
+# assumed. $SECRET_PLUGINS is unquoted on purpose: the word splitting is the
+# mechanism. It is empty when the plugin is not installed, and the loop then
+# does nothing, which is correct — there is nothing to hide.
+for p in $SECRET_PLUGINS; do
+    grep -qF -- "InaccessiblePaths=$p" /etc/systemd/system/encore-kiosk.service ||
+        die "encore-kiosk.service does not hide ${p#-} — the terminal would stop at a keyring prompt nobody can answer. Add to the unit: InaccessiblePaths=$p"
+done
+
 systemctl daemon-reload
 systemctl enable --quiet encore-kiosk.service
 

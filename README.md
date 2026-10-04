@@ -16,8 +16,11 @@ front of anybody.
 
 On the machine you are converting:
 
-- **An apt-family Linux.** Raspberry Pi OS "trixie" (October 2025), Ubuntu
-  26.04, or Debian 13 — or newer. Other package managers are not supported.
+- **A Linux using `apt` or `dnf`.** Watched working on Raspberry Pi OS
+  "trixie" (October 2025), Ubuntu 26.04 and Debian 13 — or newer. **Fedora is
+  handled by the installer and has never been watched working:** no Fedora
+  machine has been converted and seen running, so you would be the first.
+  No other package manager is supported.
 - **systemd 254 or newer** — `systemctl --version | head -1`
 - **Wayland**
 - **wireplumber 0.5 or newer** — `wireplumber --version`. Sound only; below it

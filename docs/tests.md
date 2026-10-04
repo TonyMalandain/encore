@@ -9,6 +9,11 @@ more than a pass you assume.
 
 Status column is what has actually been watched, not what is believed.
 
+**Every status in tests 1 to 13 is an apt-family observation unless a Fedora
+machine is named in it, and none is** — the two Fedora lines in test 12a are
+off-target mechanism checks on a workstation, not a converted machine. D-036
+claimed the dnf family on 2026-10-04 and nothing has been watched there.
+
 | Test | What it answers | Status |
 |---|---|---|
 | 1 | Does a session appear at all? | Passed, VM, 2026-09-14 and again 2026-09-23 from a clean install |
@@ -24,6 +29,7 @@ Status column is what has actually been watched, not what is believed.
 | 11 | Does the probe agree with the target? | Never run |
 | 12 | Does the sound guard tell a live sound server from a socket a dead session left? | **12a passed** — Fedora workstation, `bash` and `dash`, 2026-09-29 · **12b passed** — VM, 2026-09-30, twice on consecutive fast restarts: both sockets found stale, both removed, server started, five output devices · 12a never run on the test VM, and no longer needs to be |
 | 13 | Is `/run/user/<uid>` reused across a restart? | **Answered: yes** — VM, 2026-09-30, by 12b rather than by this procedure. Sockets from an ended session were still present, so the directory outlives the session and no existence test in `start_sound` ever meant what it appeared to |
+| 14 | Does a dnf-family machine convert and run? | Never run — see 14a for what has been checked off-target |
 
 ---
 
@@ -496,3 +502,184 @@ stat -c '%i %W %Z %n' /run/user/$U /run/user/$U/pulse /run/user/$U/pulse/native
   and carry on. That is a fact about timing, not a failure.
 
 **Never run.** Needs a person at the test VM.
+
+## Test 14 — does a dnf-family machine convert and run?
+
+Three parts, and only the first can be run without a Fedora machine. D-036
+claimed the dnf family; **nothing on it has been watched**, so this test is
+where that gets paid off rather than assumed.
+
+### 14a — off-target: no Fedora terminal needed
+
+Five checks. Each one runs against the real shipped files: nothing is mocked,
+nothing is installed, and no fabricated file stands in for anything the product
+ships or the system provides.
+
+1. **The installer still parses, on both shells the targets use.** `/bin/sh` is
+   `bash` on one machine in this project and `dash` on another, and that has
+   mattered before.
+
+   ```sh
+   sh -n encore-install.sh && dash -n encore-install.sh && echo "syntax ok"
+   ```
+
+   **Pass:** `syntax ok`.
+
+2. **The unit still parses, and no key in it is being ignored.**
+
+   ```sh
+   systemd-analyze verify ./encore-kiosk.service
+   ```
+
+   **Pass:** no line containing `Unknown key` and no line containing
+   `InaccessiblePaths`. On a machine without the client installed it also prints
+   `Command /usr/bin/cage is not executable` — expected, not a failure. **Read
+   the output: the exit status says nothing here.** It is 0 while warning about
+   a misspelled key (Fedora 44, 2026-10-04) and 1 purely because `cage` is
+   absent, so neither value is evidence either way.
+
+3. **The family block really produces the right family and the right seven
+   packages, on a real machine of each family.** This runs the shipped lines
+   themselves:
+
+   ```sh
+   { echo 'die() { echo "error: $*" >&2; exit 1; }'
+     sed -n '/^# >>> family block/,/^# <<< family block/p' encore-install.sh
+     echo 'echo "$PKG_FAMILY|$SSH_UNIT|$PACKAGES"'
+   } | sh
+   ```
+
+   **Pass**, on a Fedora machine — read-only, nothing installed:
+
+   ```
+   dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber
+   ```
+
+   **Pass**, on the apt test VM:
+
+   ```
+   apt|ssh|remmina remmina-plugin-rdp cage kbd pipewire pipewire-pulse wireplumber
+   ```
+
+   And the machine with neither, which needs no machine of its own — the
+   fragment runs with an empty `PATH`, so `command -v` finds nothing. `sed`
+   keeps the real `PATH`; only the fragment loses it. **The interpreter must be
+   named absolutely** — `env PATH=/nonexistent sh` cannot find `sh` either, and
+   gives exit 127 and a misleading `env: 'sh': No such file` instead of the
+   check you wanted.
+
+   ```sh
+   { echo 'die() { echo "error: $*" >&2; exit 1; }'
+     sed -n '/^# >>> family block/,/^# <<< family block/p' encore-install.sh
+     echo 'echo "NOT REACHED"'
+   } | env PATH=/nonexistent /bin/sh; echo "exit=$?"
+   ```
+
+   **Pass:** `error: no supported package manager found…`, `exit=1`, and **no
+   `NOT REACHED`**.
+
+4. **The coverage check finds a missing path, and says which.** Fabricated
+   inputs only, in a temporary directory:
+
+   ```sh
+   T=$(mktemp -d)
+   mkdir -p "$T/usr/lib/x86_64-linux-gnu/remmina/plugins" "$T/usr/lib64/remmina/plugins"
+   touch "$T/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so" \
+         "$T/usr/lib64/remmina/plugins/remmina-plugin-secret.so"
+   find "$T/usr/lib" "$T/usr/lib64" -name 'remmina-plugin-secret.so' | sed 's|^|-|' | tr '\n' ' '
+   ```
+
+   **Pass:** both paths, each `-` prefixed, on one line. Then the `grep` half,
+   against a copy of the real unit in `$T` — a copy used as test input, never a
+   substitute for the installed one:
+
+   ```sh
+   cp encore-kiosk.service "$T/u"; grep -qF -- "InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so" "$T/u" && echo covered
+   grep -v 'lib64' "$T/u" > "$T/u2"; grep -qF -- "InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so" "$T/u2" || echo "missing, as it should be"
+   rm -rf "$T"
+   ```
+
+   **Pass:** `covered`, then `missing, as it should be`. The second half is the
+   red case: without it, the check has never been seen to fail.
+
+5. **An empty `InaccessiblePaths=` is accepted**, which is the case where the
+   plugin is not installed at all. One command, on the apt test VM — running a
+   transient unit is not read-only inspection, so it does not belong on the
+   author's workstation, which is the RDP target and out of scope (D-002):
+
+   ```sh
+   systemd-run --quiet --pipe -p "InaccessiblePaths=" /bin/true; echo "exit=$?"
+   ```
+
+   **Pass:** `exit=0`.
+
+**Results, 2026-10-04, on the author's Fedora 44 workstation — read-only,
+nothing installed, no `encore` identity created, `encore-install.sh` not run:**
+
+- **Check 1 passed.** `syntax ok`, under `bash` 5.3.9 as `/bin/sh` and under
+  `dash` 0.5.13.1.
+- **Check 2 passed.** The only line printed is
+  `encore-kiosk.service: Command /usr/bin/cage is not executable: No such file
+  or directory`; no `Unknown key`, no `InaccessiblePaths`. Exit status 1, from
+  the absent `cage` and nothing else — which is why the output is what is read.
+- **Check 3 passed on the dnf side and for the machine with neither.** The
+  shipped fragment printed
+  `dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber`,
+  and with an empty `PATH` it printed
+  `error: no supported package manager found: this needs apt-get or dnf (R-1)`,
+  `exit=1`, and no `NOT REACHED`. **The apt side is unrun** — it needs the apt
+  test VM, and nothing here can stand in for it. Before the family block
+  existed the same command printed `||`, so the check has been seen failing.
+- **Check 4 passed.** Both fabricated paths came back `-` prefixed on one line;
+  the real unit answered `covered`, and the copy with the `lib64` line removed
+  answered `missing, as it should be`.
+- **Check 5 never run.** It starts a transient unit, which is not read-only, and
+  the only Fedora machine available is the RDP target (D-002). The unit-file
+  form of an empty `InaccessiblePaths=` was accepted by `systemd-analyze
+  verify` on Fedora 44 on 2026-10-04; that is parsing, not running.
+
+### 14b — a scratch Fedora machine converts
+
+**Never run.** Needs a Fedora machine that can be snapshotted and reverted —
+not the author's workstation, which is the RDP target and out of scope (D-002).
+Record, in order and by observation:
+
+- `==> package manager: dnf` appears before anything is installed.
+- the seven dnf package names install.
+- the keyring suppression during the password step: `==> password` completes and
+  neither of the two guards after it fires. **Before this ticket, Fedora
+  stopped exactly here** — the password was not written into the profile and
+  `no password stored in the profile` was the error — so this line is the one
+  that proves the installer's `find` did its job.
+- the unit coverage check passes silently, or dies naming a path.
+- then tests 1, 3, 4, 7 and 10 from this file, which have never been run on this
+  family.
+
+### 14c — does SELinux change what the screen shows?
+
+**Never run.** **The architect named this as the one prerequisite before a
+Fedora terminal may be called working** (`constraints.md` C-1). Everything
+measured there is policy and labelling; none of it is a terminal, and a refusal
+can be invisible — that policy carries 102 `dontaudit` rules reaching
+`unconfined_service_t`, 164 reaching `unconfined_t` and 121 reaching `init_t`,
+**so a clean AVC log is not evidence of anything.** After 14b, on the same
+machine:
+
+```sh
+getenforce
+sudo setenforce 0 && getenforce
+sudo systemctl isolate encore-kiosk.target      # watch the screen, write down what it shows
+sudo setenforce 1 && getenforce
+sudo systemctl isolate encore-kiosk.target      # watch the screen again
+```
+
+**Pass:** the two screens are the same. Then SELinux is out of the picture for
+good and `constraints.md` C-1 can say so from observation. If they differ,
+`sudo semodule -DB` to switch the `dontaudit` rules off, repeat the enforcing
+run, and `sudo ausearch -m avc -ts recent` names the rule — then stop and hand
+it to the architect, because a policy module is a Fedora-only component and
+weakens D-036's one-implementation claim.
+
+What this does **not** cover: `systemctl isolate` does not reproduce boot
+conditions, so the enforcing/permissive comparison is this pair of isolates, and
+a real Fedora reboot is test 7 on this family under 14b.
