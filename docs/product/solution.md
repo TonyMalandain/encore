@@ -77,6 +77,18 @@ written procedure. Nothing here has been watched working on an old machine.
   as it satisfies R-1.
 - **State:** `real`
 - **Evidence:** claimed only
+- **A refusal that contradicted this was found on 2026-10-04 and is being
+  removed.** `encore-install.sh` listed three processor names and refused every
+  other machine — `die "unsupported architecture"`. That was never a product
+  limit. It existed only because the script had to build a Debian multiarch
+  directory name to hide Remmina's keyring plugin, so a mechanism's need leaked
+  out as a policy and turned away machines this requirement claims. Fedora also
+  builds for `ppc64le`, `s390x` and `riscv64`, and that line would have refused
+  two of them. The repair finds the plugin instead of computing its path, so the
+  product now says nothing about unusual processors **in either direction**: it
+  neither promises them nor refuses them. The honest reading of this requirement
+  was always the weaker one — nothing is assumed, and nothing is tested beyond
+  the one Mac Mini and a virtual machine.
 
 ### R-3 — The machine being connected to is untouched and unconstrained
 - **Serves:** the owner of the machine being connected to, who "asked for
