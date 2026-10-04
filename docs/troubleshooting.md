@@ -293,45 +293,43 @@ unchanged and the capability is still reversible (R-11, D-007). The unit does
 this permanently; a one-off command needs it too, because the unit's hardening
 does not apply to a separate process:
 
-```ini
-InaccessiblePaths=-/usr/lib/x86_64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
-InaccessiblePaths=-/usr/lib/aarch64-linux-gnu/remmina/plugins/remmina-plugin-secret.so
-InaccessiblePaths=-/usr/lib/arm-linux-gnueabihf/remmina/plugins/remmina-plugin-secret.so
-```
-
-### On Fedora this suppression does not work, and says nothing
-
-**Known defect, found 2026-10-04, recorded as `D-A19`.** All three paths above
-are Debian multiarch paths. Fedora puts the file at
-**`/usr/lib64/remmina/plugins/remmina-plugin-secret.so`** — verified in
-`remmina-plugins-secret-1.4.41-2.fc44`, where it is a separate package rather
-than part of `remmina-plugins-rdp`.
-
-**No path matches, and nothing reports it.** The leading `-` on each line tells
-systemd to tolerate a missing path, which is correct for the two architectures a
-given machine does not have — and is also what hides the case where *every* path
-is wrong. The unit starts clean. The plugin loads. The keyring prompt comes
-back, and the terminal waits for somebody to unlock a keyring.
-
-**The check that was printed above this section had the same fault**, which is
-why it is now a `find` over both directories. `ls /usr/lib/*/remmina/plugins/`
-cannot match `/usr/lib64/...` — the glob needs a directory *inside* `/usr/lib`.
-Tested against a mock tree holding both layouts on 2026-10-04: the old form
-found the Debian file only and exited as though it had looked everywhere. **So
-on Fedora the fix missed and the diagnostic agreed with it.**
-
-Until `D-A19` is fixed, add the Fedora path by hand on a Fedora terminal:
+The unit names four paths — three Debian multiarch layouts and Fedora's
+`/usr/lib64`. Read the current list from the unit rather than from here:
 
 ```sh
-sudo systemctl edit encore-kiosk.service
+grep InaccessiblePaths /etc/systemd/system/encore-kiosk.service
 ```
 
-```ini
-[Service]
-InaccessiblePaths=-/usr/lib64/remmina/plugins/remmina-plugin-secret.so
-```
+### Why there is a list, and what stops it going stale
 
-Then `sudo systemctl daemon-reload` and restart the terminal.
+Remmina offers no setting for this. Searched on 2026-10-04: there is no
+`disable_secret_plugin` preference, the maintainer said in 2019 they could add a
+hidden option and never did, and upstream documents exactly two mechanisms —
+uninstall the package, which `R-11` and `D-007` forbid, or make the file
+unreachable. **So the list of literal paths is not a shortcut this product took.
+It is the only mechanism available**, and it grows by one line for each new
+filesystem layout.
+
+That growth used to be silent, and it bit. **Until 2026-10-04 the unit named
+only the three Debian paths**, so on Fedora nothing matched, the leading `-` on
+each line tolerated every miss, the unit started clean, the plugin loaded, and
+the keyring prompt came back. Recorded as `D-A19`. The same wrong assumption had
+a second home in `encore-install.sh`, where the path was *computed* from
+`uname -m`, and there it was worse than a prompt: the password step could not
+suppress the plugin, so the conversion died outright.
+
+Both are fixed, and the fix is not the fourth line. **`encore-install.sh` now
+asks the machine where the file is, and refuses to finish the conversion if it
+finds a path the unit does not name.** A fifth layout therefore stops the
+install with a message naming the exact line to add, instead of producing a
+terminal that quietly asks for a keyring. If you are converting a machine with
+an unusual layout and the installer stops for this reason, that is the guard
+working, and the message tells you what to do.
+
+**If you meet a keyring prompt on a terminal converted after 2026-10-04, do not
+hand-edit the unit.** The path your machine needs is either already there or the
+installer would have refused. Read the journal instead — `journalctl -t
+encore-kiosk -b --no-pager` — and treat it as something new.
 
 ## It prompts for a password even though one is stored
 
