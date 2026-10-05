@@ -236,6 +236,37 @@ The number is retired and is never reused.
   follows the active session on the seat, so using a text console on the terminal
   can silence it until it restarts (D-034).
 
+### R-20 — A terminal can decode its session's video without software fallback
+- **Serves:** the adopter reusing an old machine, which is the machine least
+  able to spend its processor on work its graphics chip does for free.
+- **Who it serves:** terminal administrator, prospective adopter, and the person
+  sitting at the terminal, who experiences this as the session feeling wrong.
+- **What they get:** a terminal that is refused at conversion time if it cannot
+  decode, rather than one that works slowly and never says why.
+- **State:** `intended`
+- **Evidence:** nothing is built. Observed in the negative on 2026-10-05, on a
+  Fedora 44 virtual machine on AMD: the session was unusable and nothing in any
+  log named the cause. Found because a human watched the screen and thought it
+  felt wrong.
+- **Why it is a requirement and not a defect:** hardware H.264 decoding has been
+  in Intel and AMD graphics since about 2011, so the capability is a safe
+  assumption on anything this product would be installed on. The **driver** is
+  not. On Fedora every usable one lives in RPM Fusion and Fedora's own
+  repositories carry only `libva`, the interface — measured 2026-10-05.
+- **The product checks and refuses; it does not supply.** `D-037` gives the
+  reasoning: installing the driver would mean adding a third-party repository to
+  somebody's machine, which `R-11` would then oblige the undo to remove, and
+  removing a repository strands what was installed from it.
+- **Decode, not encode.** This is `VAEntrypointVLD`. The machine being connected
+  to needs the opposite capability, `VAEntrypointEncSlice`, and
+  `docs/other-machine.md` recipe 3 checks for that one. Different capability,
+  different driver — a check copied from there would pass on a terminal that
+  cannot decode.
+- **Untested on the apt family.** Debian does not strip codecs from Mesa the way
+  Fedora does, so the one converted apt machine may have satisfied this all
+  along. Nobody has measured it, and this requirement must not be read as
+  evidence either way.
+
 ### R-19 — A terminal with a microphone can be spoken into
 - **Serves:** "a terminal with no sound is half a computer" — the half of it
   that makes a call possible rather than only audible.

@@ -234,3 +234,27 @@ The second reason is that the author's own main machine is Fedora, so a second f
 Finally, the claimed surface doubles while the author count does not. A defect reported on Fedora cannot be reproduced on an apt terminal and the reverse, so every future failure report now carries a question it did not carry before.
 
 **Source:** the author, 2026-10-04
+
+### D-037 — A terminal must be able to decode its session's video, and the installer checks rather than supplies it — 2026-10-05
+**Decision:** Hardware H.264 decoding becomes a **requirement** of the machine being converted, recorded as `R-20`. The installer **detects whether the machine can decode, and refuses to convert it when it cannot**, printing the exact commands for that machine's graphics hardware. **The installer does not install the driver and does not enable any third-party repository.**
+
+**Why:** The author's call on 2026-10-05, during the first Fedora conversion ever performed. Treating it as a requirement is sound for the reason the author gave: hardware H.264 decoding has been in Intel graphics since 2011 and in AMD's for as long, so by 2026 the *silicon* is a safe assumption on anything this product would be installed on. What is not a safe assumption is the *driver*, and that is a packaging fact rather than a hardware one.
+
+The refusal is the installer's job because **the failure is silent and expensive**. A terminal with no hardware decoding still works — it just spends its processor doing in software what the chip does for free, on exactly the old, weak machines this product exists to reuse. Nothing reports it. It was found only because a human watched a session and thought it felt wrong, which is not a diagnostic anyone should depend on.
+
+The reason the installer stops rather than fixes is that **on Fedora every usable driver lives in RPM Fusion**, measured on 2026-10-05: `mesa-va-drivers-freeworld` for AMD and `libva-intel-driver` for older Intel in RPM Fusion Free, `intel-media-driver` for Intel Gen8 and later in RPM Fusion Nonfree, and Nvidia needing a proprietary driver plus a translation layer. Fedora's own repositories carry `libva`, the interface, and no driver behind it. So "install it if missing" would mean this project adding a third-party repository to a stranger's machine — a machine-wide, persistent change that `R-11` and `D-007` would then require `encore-uninstall.sh` to remove, and removing a repository strands every package installed from it. The author rejected that, and the rejection is the right way round: the product asks for one capability and declines to acquire it on the adopter's behalf.
+
+This also keeps the product consistent with how it already treats a machine that does not qualify. `D-024` excludes older releases; the systemd floor refuses rather than works around. A missing driver now behaves the same way.
+
+**Costs accepted:** **This turns away working machines.** A terminal with no hardware decoding is slow, not broken, and the product will now refuse to convert it — so an adopter whose machine would have produced a usable, if warm, terminal is stopped and asked to install something first. That is a real narrowing of `R-1` and `R-2`, and it is the second refusal added in two days: `D-A20` removed one and this adds another, which is worth noticing rather than filing as unrelated.
+
+The refusal also lands on the adopter least able to act on it. Someone converting an old machine in a household now meets a message about graphics drivers and third-party repositories, which is a harder thing to be told than "install a newer Debian". The message must therefore name the exact commands for the hardware in front of them, and a generic message would make this decision worse than no check at all.
+
+**Detection is itself unproven.** The reliable test is `vainfo`, which ships in `libva-utils` — present in Fedora's own repositories and in the apt families, so the check costs no third-party anything. But nobody has established whether the apt family needs this check at all; Debian does not strip codecs from Mesa the way Fedora does, so the one converted apt machine may have had hardware decoding all along and nobody measured it. The check is therefore written as a capability test on both families rather than as a Fedora special case, and the record must not claim the apt family was verified until somebody looks.
+
+**A correction belongs with this decision.** `docs/other-machine.md` recipe 3 checks `VAEntrypointEncSlice` — *encoding*, which is what the machine being connected to must do. A terminal must *decode*, which is `VAEntrypointVLD`. These are different capabilities with different drivers, and conflating them would produce a check that passes on a terminal that cannot decode. The existing recipe is correct for its own machine and must not be copied for this one.
+
+**What is deliberately not decided here:** whether a machine that fails the check may be converted anyway on the adopter's insistence. There is a real case for it — a virtual machine has no GPU passthrough at all and can never satisfy this, yet converting one is exactly how this product is developed and tested. Left open rather than guessed.
+
+**Source:** the author, 2026-10-05, on the first Fedora conversion ever performed
+
