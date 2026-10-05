@@ -471,6 +471,47 @@ whether a particular fingerprint is the one being presented.
 
 ---
 
+## The session is unusably slow on Fedora, and nothing failed
+
+**Check:**
+
+```sh
+rpm -q --whatprovides 'libopenh264.so.8()(64bit)'
+```
+
+**If that answers `noopenh264`, this is it.**
+
+**Cause: Fedora ships a decoy.** Two packages provide `libopenh264.so.8` —
+`openh264`, which decodes, and **`noopenh264`, which provides the library and
+decodes nothing.** The RDP client's library requires that file automatically, so
+on a fresh Fedora `dnf` satisfies the requirement with the stub from Fedora's own
+repositories. The link resolves. The install is clean. **H.264 decoding silently
+does nothing**, and no log mentions it.
+
+**Fix:**
+
+```sh
+sudo dnf install openh264
+```
+
+No extra flags: the real package obsoletes the stub, so this replaces it. And no
+third-party repository is involved — `openh264` comes from
+`fedora-cisco-openh264`, which Fedora enables by default.
+
+**Terminals converted from 2026-10-05 onwards do not meet this** — the installer
+names `openh264` on the dnf side. The check above is for a machine converted
+before that, or one where somebody removed it.
+
+**This restores *software* decoding, and that is all it can do.** The client is
+built without any hardware video path — `WITH_VAAPI=OFF`, and it links no
+`libva` — so the terminal decodes on its own processor whatever you install. A
+graphics driver will not change it. `D-037` records a decision taken and
+withdrawn the same day for exactly that reason, and backlog item 13c holds the
+remaining question: whether the session should be asking for H.264 at all.
+
+**The apt family does not have this.** Debian and Ubuntu ship the real library
+in main with no stub.
+
 ## Something is broken and the machine enforces SELinux
 
 Mostly Fedora and its relatives. Debian, Ubuntu and Raspberry Pi OS do not
