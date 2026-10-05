@@ -235,7 +235,34 @@ Finally, the claimed surface doubles while the author count does not. A defect r
 
 **Source:** the author, 2026-10-04
 
-### D-037 — A terminal must be able to decode its session's video, and the installer checks rather than supplies it — 2026-10-05
+### D-037 — ~~A terminal must be able to decode its session's video, and the installer checks rather than supplies it~~ — **WITHDRAWN 2026-10-05, the same day it was taken** — 2026-10-05
+**Withdrawn because its central factual premise is false.** The decision assumed a terminal could *use* hardware H.264 decoding. It cannot. Measured from the shipped binary on the author's Fedora 44 machine, hours after this decision was written:
+
+```
+WITH_VAAPI=OFF
+WITH_VAAPI_AVAILABLE=0      <- not even buildable there
+WITH_FFMPEG=OFF
+WITH_VIDEO_FFMPEG=OFF
+WITH_OPENH264=TRUE
+```
+
+and `objdump -p /usr/lib64/libfreerdp3.so.3` lists exactly one relevant library, `libopenh264.so.8` — **no `libva`, no `libva-drm`, no `libavcodec`.** The client decodes H.264 on the processor, in software, always. Debian's own packaging sets `-DWITH_VAAPI=OFF` too, so this is every distribution rather than a Fedora quirk, and FreeRDP's `WITH_VAAPI` is an *encoding* feature for its shadow server in any case — its paired option is literally `WITH_VAAPI_H264_ENCODING`. **There is no client-side hardware decode path to switch on.** So the `vainfo` check this decision ordered would have gated conversion on a capability nothing on the machine consumes, and the driver packages it named would have changed nothing on a terminal.
+
+**A second, independent reason, which would have withdrawn it alone: the check refuses every Raspberry Pi.** There is no VA-API driver for VideoCore, so `vainfo` fails outright. Pi 4 and earlier decode H.264 in hardware through a different interface entirely (V4L2, `bcm2835-codec`), and Pi 5 has no H.264 decoder at all. Raspberry Pi OS is the first platform this product names. This decision priced neither fact.
+
+**How the error was made, because that is the part worth keeping.** The chain was: the author watched a Fedora session and found it unusable — true, and still unexplained. The product manager then noticed `openh264` absent from the install log's weak-dependency list and inferred a missing codec. **That inference was also wrong**: `libopenh264.so.8` is a hard link in `libfreerdp3`, so rpm generates an automatic requirement and the package was installed all along, pulled in by `freerdp` rather than by `remmina`'s recommendation. The author's instruction — detect and refuse rather than install a third-party repository — was sound and was followed; it was applied to a cause that did not exist. **Nobody ran the one command that would have settled it**, which is the failure `CONTRIBUTING.md` names by name: do not reason from configuration to runtime. It was committed here while writing a product decision, which is the most expensive place in this repository to commit it.
+
+**What survives.** The author's refusal to have the installer enable RPM Fusion stands on its own and is worth keeping for whenever a third-party repository is next proposed: adding one is a machine-wide, persistent change that `R-11` and `D-007` would oblige the undo to remove, and removing a repository strands every package installed from it. Also measured and worth keeping: on Fedora 44 **no package named `mesa-va-drivers` exists at all**, and `libva-nvidia-driver` is in Fedora's own repositories rather than RPM Fusion — this decision's original text overstated the Nvidia case by one package.
+
+**What replaces it: nothing, and that is deliberate.** The slow session is real and its cause is now openly unknown. The strongest remaining candidate is that the terminal is being sent H.264 at all and decoding it in software on a weak processor — which points at the connection profile's never-examined settings (`network`, `glyph-cache`, colour depth) under backlog item 13c, not at any package. That costs no packages and refuses no machines. `R-20` is removed and backlog item 18 is withdrawn.
+
+**Superseded-by:** nothing yet.
+
+---
+
+*The original decision follows, unedited, because a decision that was wrong is part of the record.*
+
+### D-037 (original text, withdrawn) — A terminal must be able to decode its session's video, and the installer checks rather than supplies it — 2026-10-05
 **Decision:** Hardware H.264 decoding becomes a **requirement** of the machine being converted, recorded as `R-20`. The installer **detects whether the machine can decode, and refuses to convert it when it cannot**, printing the exact commands for that machine's graphics hardware. **The installer does not install the driver and does not enable any third-party repository.**
 
 **Why:** The author's call on 2026-10-05, during the first Fedora conversion ever performed. Treating it as a requirement is sound for the reason the author gave: hardware H.264 decoding has been in Intel graphics since 2011 and in AMD's for as long, so by 2026 the *silicon* is a safe assumption on anything this product would be installed on. What is not a safe assumption is the *driver*, and that is a packaging fact rather than a hardware one.
