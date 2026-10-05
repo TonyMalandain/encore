@@ -9,12 +9,14 @@ itself — so they are written down here rather than left for you to find.
 
 Do these once, after your first terminal is working.
 
+**If you set these up before 2026-10-05, redo number 2.** The rule published here until then granted updates to every user rather than refusing them, and it is still in effect wherever it was applied.
+
 ## Contents
 
 | # | What | Symptom if you skip it | Effort |
 |---|---|---|---|
 | 1 | [Take the power controls away from the session](#1-take-the-power-controls-away-from-the-session) | Someone at a terminal switches off the machine every terminal depends on | One file |
-| 2 | [Stop the software updater asking for a password](#2-stop-the-software-updater-asking-for-a-password) | A password box nobody at the terminal can answer, over and over | One file |
+| 2 | [Stop the software updater asking for a password](#2-stop-the-software-updater-asking-for-a-password) | A password box nobody at the terminal can answer, over and over. **And if you used the version of this rule from before 2026-10-05, every user can apply system updates with no password** | One file |
 | 3 | [Check the machine can encode video](#3-check-the-machine-can-encode-video) | **Each terminal costs ~130 Mbps instead of a few** — and nothing tells you | One package |
 
 **Number 3 is the one to do first if you only do one.** The other two are
@@ -103,51 +105,136 @@ back in.
 
 ## 2. Stop the software updater asking for a password
 
-The same quirk causes a second, noisier problem.
+**Corrected 2026-10-05, and the correction matters.** The rule printed here
+until that date returned `YES`, which **granted every user — not just
+administrators — the right to apply system updates with no password.** The text
+beside it said "nothing extra is granted", which was true in the authorisation
+service's own terms and badly misleading in plain ones. Found by the author
+asking the obvious question: *"updates will NOT be executed for regular users,
+correct?"* The answer was no, and the old rule is the reason.
+
+**If you applied the old version, replace the file.** It is a grant, not a
+refusal, and it is still in effect on any machine that has it.
+
+### What is wrong on an untouched machine
 
 A session arriving over the network is **not a *local* session** as far as the
 authorisation service is concerned — the system's own rules test for that
 explicitly. So things that happen silently for somebody sitting at the keyboard
 stop and ask for an administrator password instead.
 
-The software catalogue refreshes itself in the background. In a terminal's
-session that becomes a password box, repeatedly, in front of somebody who cannot
-answer it. **Observed here six times over three days before anyone noticed.**
+Three separate update systems do this, and a desktop drives all three:
+
+| Family | Updates what | Easy to forget? |
+|---|---|---|
+| `packagekit` | the system's own packages | no |
+| `Flatpak` | applications | no |
+| **`fwupd`** | **firmware** | **yes — this is the one that gets missed** |
+
+The catalogue also refreshes itself on a timer. In a terminal's session that
+becomes a password box, repeatedly, in front of somebody who cannot answer it.
+**Observed here six times over three days before anyone noticed.**
+
+### The rule
 
 As root on the machine being connected to:
 
 ```sh
 cat > /etc/polkit-1/rules.d/20-no-update-prompt.rules <<'EOF'
-// A session over the network has subject.local == false, so actions that are
-// free at the keyboard ask for an admin password instead. This restores the
-// at-the-keyboard answer for the refresh actions only — every one of these
-// already defaults to `yes` for a local session, so nothing extra is granted.
+// Deny updates to everyone outside wheel, and say nothing about wheel.
 //
-// Installing, uninstalling and configuring still need an administrator, exactly
-// as they do locally. Parental-control actions are deliberately absent.
+// NO, not auth_admin: a password box leaves the button on screen and offers
+// something they cannot answer, which is the trap rather than the cure. NO
+// makes the session hide or grey the entry. Same reasoning as rule 1.
+//
+// wheel gets NO VERDICT AT ALL -- the function returns nothing, so the
+// authorisation service uses each action's own default: silent at the
+// keyboard, asks over the network. That is out-of-the-box behaviour.
+// Returning YES for wheel would be wrong: it would make an administrator
+// update silently over the network, which is not the default. The version of
+// this rule shipped before 2026-10-05 returned YES for EVERYBODY.
+//
+// NOT LISTED, therefore still needing an administrator for everyone including
+// wheel: install, reinstall, remove, uninstall, downgrade, repository
+// configuration, signing keys, install-bundle, repair-system, and every
+// org.rpm.dnf.v0.* action. Parental controls are deliberately absent.
+// packagekit.upgrade-system is already allow_any=no, so nobody reaches it
+// over the network and it needs no line here.
 polkit.addRule(function(action, subject) {
-    if (action.id == "org.freedesktop.Flatpak.metadata-update" ||
-        action.id == "org.freedesktop.Flatpak.appstream-update" ||
-        action.id == "org.freedesktop.Flatpak.app-update" ||
-        action.id == "org.freedesktop.Flatpak.runtime-update" ||
-        action.id == "org.freedesktop.Flatpak.update-remote") {
-        return polkit.Result.YES;
+    if ((action.id == "org.freedesktop.Flatpak.app-update" ||
+         action.id == "org.freedesktop.Flatpak.appstream-update" ||
+         action.id == "org.freedesktop.Flatpak.metadata-update" ||
+         action.id == "org.freedesktop.Flatpak.runtime-update" ||
+         action.id == "org.freedesktop.Flatpak.update-remote" ||
+         action.id == "org.freedesktop.fwupd.refresh-remote" ||
+         action.id == "org.freedesktop.fwupd.update-hotplug" ||
+         action.id == "org.freedesktop.fwupd.update-hotplug-trusted" ||
+         action.id == "org.freedesktop.fwupd.update-internal" ||
+         action.id == "org.freedesktop.fwupd.update-internal-trusted" ||
+         action.id == "org.freedesktop.packagekit.clear-offline-update" ||
+         action.id == "org.freedesktop.packagekit.system-sources-refresh" ||
+         action.id == "org.freedesktop.packagekit.system-update" ||
+         action.id == "org.freedesktop.packagekit.trigger-offline-update" ||
+         action.id == "org.freedesktop.packagekit.trigger-offline-upgrade") &&
+        !subject.isInGroup("wheel")) {
+        return polkit.Result.NO;
     }
 });
 EOF
 ```
 
-**This rule grants, where the one above refuses. That is deliberate.** Refusing
-here would swap the password box for failure messages, which is no better.
-Granting restores exactly what the person would have had sitting at the keyboard
-— every action listed already defaults to `yes` for a local session, so nothing
-extra is given away.
+**Check the group name before you run this.** `wheel` is the administrators'
+group on Fedora and RHEL. On Debian and Ubuntu it is `sudo`:
 
-Installing, removing and configuring software still need an administrator, just
-as they do locally.
+```sh
+getent group wheel sudo
+```
 
-**To check it:** open the software application in that person's session and let
-it refresh. No password box means it worked.
+### What this gives you
+
+| | Outside `wheel` | In `wheel` |
+|---|---|---|
+| Apply updates | **refused, with nothing on screen** | the default — silent at the keyboard, asks over the network |
+| Install, remove, configure repositories | needs an administrator | needs an administrator |
+
+**Nobody updates that machine from a remote session.** You update it at its own
+keyboard, or over SSH. For a machine every terminal in the house depends on,
+that is the right way round.
+
+### Then verify it
+
+```sh
+sudo -u <a-non-admin-user> busctl call org.freedesktop.PackageKit \
+  /org/freedesktop/PackageKit org.freedesktop.PackageKit \
+  CanAuthorize s org.freedesktop.packagekit.system-update
+```
+
+- `"no"` — it worked.
+- `"challenge"` — the rule is not firing. See the `grep` in rule 1: files are
+  read in filename order and **the first one to answer wins**, so an older rule
+  of your own silently beats this one.
+
+**Do not judge this by looking at the menu.** A session asks once and remembers
+the answer, so log that person out and back in first.
+
+### One thing to watch, which is genuinely unresolved
+
+This rule **refuses the metadata refreshes too** — the background catalogue and
+firmware checks, not just the act of updating. That is deliberate: somebody who
+cannot update has no use for a refreshed list.
+
+**But nobody has watched what the desktop does about it.** The earlier version of
+this page argued that refusing a refresh would swap one password box for repeated
+failure messages, which is no better. That argument may still be right.
+
+So after applying this, log into that person's session, open the software
+application, and wait:
+
+- **Quiet, with no updates offered** — this is finished.
+- **Error banners** — move the five refresh actions
+  (`Flatpak.appstream-update`, `Flatpak.metadata-update`, `Flatpak.update-remote`,
+  `fwupd.refresh-remote`, `packagekit.system-sources-refresh`) into a second rule
+  that returns `YES` for everybody. They change nothing on the machine.
 
 **On parental controls:** this rule does not touch them, and the action that
 overrides them stays locked by the system's own rule.
