@@ -572,8 +572,8 @@ each time it appears.
    misspelled key, and 1 purely because `cage` is absent — measured both ways
    on Fedora 44 on 2026-10-04 — so neither value is evidence either way.
 
-3. **The family block really produces the right family and the right seven
-   packages, on a real machine of each family.** This runs the shipped lines
+3. **The family block really produces the right family and the right package
+   names, on a real machine of each family.** This runs the shipped lines
    themselves:
 
    ```sh
@@ -583,17 +583,43 @@ each time it appears.
    } | sh
    ```
 
-   **Pass**, on a Fedora machine — read-only, nothing installed:
+   **Pass**, on a Fedora machine — read-only, nothing installed. Eight names:
+   the seven both families need, plus `openh264`, which **only the dnf side
+   asks for**. On Fedora the automatic `libopenh264.so.8` requirement under
+   `libfreerdp3` is satisfied by default from Fedora's own repositories by
+   `noopenh264`, **a stub that links and decodes nothing**, so the install is
+   clean and the session is unusable. Naming `openh264` swaps the stub out
+   (it carries `Obsoletes: noopenh264 < 1:0`) from
+   `fedora-cisco-openh264`, which is enabled by default — no third-party
+   repository. This makes **software** decoding work; the client is built
+   `WITH_VAAPI=OFF` and this is not hardware acceleration:
 
    ```
-   dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber
+   dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber openh264
    ```
 
-   **Pass**, on the apt test VM:
+   **Pass**, on the apt test VM — seven names, and **no `openh264`**: Debian
+   and Ubuntu ship the real `libopenh264` in main with no stub beside it:
 
    ```
    apt|ssh|remmina remmina-plugin-rdp cage kbd pipewire pipewire-pulse wireplumber
    ```
+
+   **And the empty variable must vanish, not become an empty argument.** The
+   apt side leaves `$H264_DECODER` empty inside one unquoted `$PACKAGES`, and
+   an empty string reaching `apt-get install` as its own argument is a
+   different thing from one that is not there. Counted, not reasoned about —
+   seven arguments on apt, eight on dnf, and every one of them non-empty:
+
+   ```sh
+   { echo 'die() { echo "error: $*" >&2; exit 1; }'
+     sed -n '/^# >>> family block/,/^# <<< family block/p' encore-install.sh
+     echo 'set -- $PACKAGES; echo "args=$#"; for a in "$@"; do [ -n "$a" ] || echo "EMPTY ARGUMENT"; done'
+   } | sh
+   ```
+
+   **Pass:** `args=8` on Fedora, `args=7` on the apt test VM, and **no
+   `EMPTY ARGUMENT`** on either.
 
    And the machine with neither, which needs no machine of its own — the
    fragment runs with an empty `PATH`, so `command -v` finds nothing. `sed`
@@ -746,6 +772,34 @@ nothing installed, no `encore` identity created, `encore-install.sh` not run:**
   check itself changed; it is correct now only because the value it reads is
   gathered after the client is installed.
 
+**Addendum, 2026-10-05, same machine and same conditions — read-only, nothing
+installed, `encore-install.sh` not run. Check 3 grew the `openh264` name and
+the argument count, and was watched failing first.**
+
+- **Red.** Against the family block before the change, the first half printed
+  `dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio
+  wireplumber` — no `openh264` — and the counting half printed `args=7` where
+  the pass condition on dnf is `args=8`.
+- **Green.** After the change the first half printed
+  `dnf|sshd|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio
+  wireplumber openh264` and the counting half printed `args=8` with no
+  `EMPTY ARGUMENT`.
+- **The empty variable was watched, not reasoned about.** The apt branch cannot
+  run here, so the shipped `PACKAGES=` line itself was fed the apt side's
+  values with `H264_DECODER=` empty: `args=7`, and the seven arguments printed
+  as `[remmina][remmina-plugin-rdp][cage][kbd][pipewire][pipewire-pulse]`
+  `[wireplumber]` with no eighth, empty one. **The apt side of check 3 proper
+  is still unrun** — it needs the apt test VM.
+- **The two facts the fix rests on, from `dnf -q repoquery` on Fedora 44.**
+  `--whatprovides 'libopenh264.so.8()(64bit)'` lists both
+  `noopenh264-0:2.6.0-4.fc44.x86_64` and `openh264-0:2.6.0-3.fc44.x86_64`, and
+  `--obsoletes openh264` prints `noopenh264 < 1:0`.
+- **This machine cannot demonstrate the defect and was not made to.** `rpm -q`
+  says `openh264-2.6.0-3.fc44.x86_64` is installed and `noopenh264` is not, so
+  it already carries the real decoder. The stub being what a *fresh* Fedora
+  picks is a repository fact, shown by the two queries above; watching the
+  unusable session itself belongs to 14b.
+
 ### 14b — a scratch Fedora machine converts
 
 **Never run.** Needs a Fedora machine that can be snapshotted and reverted —
@@ -753,7 +807,28 @@ not the author's workstation, which is the RDP target and out of scope (D-002).
 Record, in order and by observation:
 
 - `==> package manager: dnf` appears before anything is installed.
-- the seven dnf package names install.
+- the eight dnf package names install.
+- **`openh264` is in the transaction, and `noopenh264` is not what satisfies
+  `libopenh264.so.8`.** This is the one thing on this machine that cannot be
+  checked anywhere else, because the author's workstation already has the real
+  decoder. Read the transaction dnf prints, and then the installed truth:
+
+  ```sh
+  rpm -q openh264 noopenh264
+  rpm -q --whatprovides 'libopenh264.so.8()(64bit)'
+  ```
+
+  **Watch for:** `openh264` installed, `noopenh264` **not installed**, and the
+  provider of the library being `openh264`. If `noopenh264` is what is there,
+  the stub won and the session will be unusable while the install reports
+  success — the exact defect the `openh264` name in `$PACKAGES` exists to
+  prevent. Note that `openh264` obsoletes the stub, so on a machine that
+  already had `noopenh264` the transaction should show it being *replaced*,
+  with no `--allowerasing` and no third-party repository: the real package
+  comes from `fedora-cisco-openh264`, which Fedora enables by default.
+  **Then watch the session**, because that is the only evidence that matters —
+  and note that decoding here is on the processor either way; this makes
+  software decoding work and is not hardware acceleration.
 - the keyring suppression during the password step: `==> password` completes and
   neither of the two guards after it fires. **Before this ticket, Fedora
   stopped exactly here** — the password was not written into the profile and

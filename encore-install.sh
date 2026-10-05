@@ -45,6 +45,9 @@ if command -v apt-get >/dev/null 2>&1; then
     PULSE_SHIM=pipewire-pulse
     SSH_UNIT=ssh
     SSH_INSTALL="apt install openssh-server"
+    # Empty on purpose — Debian and Ubuntu ship the real libopenh264 in main
+    # and have no stub beside it. See the dnf side for what this is for.
+    H264_DECODER=
 elif command -v dnf >/dev/null 2>&1; then
     # `dnf`, not `dnf5`: `dnf` exists across the whole family and is a symlink
     # to dnf5 where dnf5 is what the machine has (Fedora 44, 2026-10-04).
@@ -53,16 +56,35 @@ elif command -v dnf >/dev/null 2>&1; then
     PULSE_SHIM=pipewire-pulseaudio
     SSH_UNIT=sshd
     SSH_INSTALL="dnf install openssh-server"
+    # NOT REDUNDANT, AND NOT A TIDY-UP CANDIDATE. `libfreerdp3` has
+    # `NEEDED libopenh264.so.8`, so rpm requires it automatically and the
+    # install is always clean — but on a fresh Fedora dnf satisfies that
+    # requirement from Fedora's own repositories with `noopenh264`, which is a
+    # **stub that provides the library and decodes nothing**. The link
+    # resolves, nothing fails, and the session is unusable: a stub that
+    # satisfies the dependency and silently does not work. Naming the real
+    # package swaps the stub out — `openh264` carries
+    # `Obsoletes: noopenh264 < 1:0`, so no --allowerasing is needed — and it
+    # comes from `fedora-cisco-openh264`, enabled by default, so this adds no
+    # third-party repository. Measured on Fedora 44, 2026-10-05.
+    #
+    # This makes **software** decoding work. The client is built
+    # `WITH_VAAPI=OFF` and links no libva; nothing here is hardware
+    # acceleration (D-037's withdrawal).
+    H264_DECODER=openh264
 else
     die "no supported package manager found: this needs apt-get or dnf (R-1)"
 fi
 
-# Each of the seven names appears once. Two of them differ by family; the other
-# five are identical, measured on Fedora 44 on 2026-10-04 and recorded in
-# docs/architecture/stack.md. One list rather than one per family, so that
-# adding a package and forgetting a branch is impossible — the next addition is
-# already known to differ (item 7's capture tool).
-PACKAGES="remmina $RDP_PLUGIN cage kbd pipewire $PULSE_SHIM wireplumber"
+# Each name appears once. Seven are wanted by both families — two of those
+# differ by family name, five are identical, measured on Fedora 44 on
+# 2026-10-04 and recorded in docs/architecture/stack.md. $H264_DECODER is the
+# first one only *one* family needs, and it is still a variable in this one
+# list rather than a second list or a branch further down, so that adding a
+# package and forgetting a branch stays impossible. It is empty on apt, and an
+# empty variable inside this unquoted expansion splits to nothing at all
+# rather than to an empty argument — watched, test 14a check 3.
+PACKAGES="remmina $RDP_PLUGIN cage kbd pipewire $PULSE_SHIM wireplumber $H264_DECODER"
 # <<< family block
 
 # Said out loud, before anything is installed: on a machine carrying both
@@ -129,7 +151,8 @@ echo "==> packages"
 #
 # Two commands, not one with a variable in it, so that what runs as root
 # on somebody's machine reads as a command. $PACKAGES is unquoted on
-# purpose: the word splitting is how seven names become seven arguments.
+# purpose: the word splitting is how a list of names becomes that many
+# arguments — seven on apt, eight on dnf, which carries $H264_DECODER.
 #
 # There is no `dnf` line matching `apt-get update`, and adding one would
 # be a mistake: `apt-get install` does not refresh and fails outright on a
