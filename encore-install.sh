@@ -56,7 +56,7 @@ elif command -v dnf >/dev/null 2>&1; then
     PULSE_SHIM=pipewire-pulseaudio
     SSH_UNIT=sshd
     SSH_INSTALL="dnf install openssh-server"
-    # NOT REDUNDANT, AND NOT A TIDY-UP CANDIDATE. `libfreerdp3` has
+    # NOT REDUNDANT, AND NOT A TIDY-UP CANDIDATE. `freerdp-libs` has
     # `NEEDED libopenh264.so.8`, so rpm requires it automatically and the
     # install is always clean — but on a fresh Fedora dnf satisfies that
     # requirement from Fedora's own repositories with `noopenh264`, which is a
