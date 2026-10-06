@@ -95,7 +95,9 @@ prints both activation commands verbatim and `encore-uninstall.sh:81` compares
 against the target name as a literal string. The name is now load-bearing in
 code as well as in prose.
 
-**What this ADR did not anticipate, and the record should carry it here:**
+**What this ADR did not anticipate, and the record should carry it here** — *the
+"untested" below was true until 2026-10-05 and is not any more; see the second
+addendum at the end of this file:*
 `systemctl isolate encore-kiosk.target` on a machine already running a desktop
 did **not** bring the capability's console to the foreground. Whether a machine
 that *boots* into the target behaves the same way is **untested** — Test 7 in
@@ -105,3 +107,30 @@ stated; if only `isolate` is affected, the lasting activation path is sound and
 the fault belongs to switching away from a live session. Neither branch is
 established, and this is recorded as untested rather than as either.
 
+---
+
+## Addendum, 2026-10-05 — the boot half of "activation is one command" has been
+## watched, and it works
+
+The section above records that `systemctl isolate encore-kiosk.target` on a
+machine already running a desktop did not bring the capability's console to the
+foreground, and that whether a machine which *boots* into the target behaves the
+same way was **untested**, Test 7 never having been run. **Test 7 has now been
+watched passing:** on 2026-10-05 a Fedora 44 machine was rebooted and came back
+into a working session by itself, with nothing done by hand.
+
+So of the two branches that section named, the second is the one that holds. The
+`set-default` path — the lasting activation, and the one R-8 depends on — reaches
+a session from a cold boot. The fault belongs to switching away from a live
+session, not to the console choice, and `ExecStartPre=+/usr/bin/chvt 7` is
+sufficient on the path that matters. This ADR's "activation is one command" claim
+is intact on the boot form and still carries one unexplained failure on the
+`isolate` form.
+
+**This does not reverse or narrow the decision, so it is an addendum.** Two limits
+on it, both worth keeping: it is **one machine, once**, and it is not the machine
+the `isolate` failure was seen on — that was an apt VM and this was a dnf
+machine, so the two halves of the comparison come from different systems. The
+SELinux mode the boot came up in was not recorded either, which matters because
+`docs/tests.md` test 14c's enforcing comparison is a pair of `isolate` calls and
+explicitly does not reproduce boot conditions.

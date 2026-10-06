@@ -17,12 +17,11 @@ front of anybody.
 On the machine you are converting:
 
 - **A Linux using `apt` or `dnf`.** Watched working on Raspberry Pi OS
-  "trixie" (October 2025), Ubuntu 26.04 and Debian 13 — or newer.
-  **On Fedora, the install has been watched working and the terminal has
-  not.** The setup script ran to the end on a Fedora 44 machine on 2026-10-05.
-  But no Fedora machine has ever shown a session on its screen, so you would
-  be the first to see whether the terminal itself works. Expect to debug.
-  No other package manager is supported.
+  "trixie" (October 2025), Ubuntu 26.04 and Debian 13 — or newer — and on
+  Fedora 44. A Fedora terminal has shown a session, kept it across a reboot,
+  and behaved the same with SELinux enforcing and not enforcing. **Sound and
+  the off-switch have not been watched on Fedora**, so if you want either,
+  expect to be the first to try. No other package manager is supported.
 - **systemd 254 or newer** — `systemctl --version | head -1`
 - **Wayland**
 - **wireplumber 0.5 or newer** — `wireplumber --version`. Sound only; below it
@@ -164,8 +163,8 @@ Detail for every one of these is in
 [`docs/architecture/debt.md`](docs/architecture/debt.md), and the order they get
 fixed in is [`BACKLOG.md`](BACKLOG.md).
 
-1. **A terminal that has stopped working reports itself healthy.** Watched on
-   2026-09-23: the connection failed, a dialog went up on the terminal's
+1. **A terminal that has stopped working reports itself healthy.** Watched: the
+   connection failed, a dialog went up on the terminal's
    screen, and the journal recorded only that the service had started. The
    screen is the only place a failure appears, and it is the one place you are
    told not to debug through.
@@ -186,9 +185,9 @@ fixed in is [`BACKLOG.md`](BACKLOG.md).
 7. **The console may not switch by itself** when the capability is started on a
    machine that is already running a desktop. Whether a machine that boots
    straight into terminal mode has the same problem is untested.
-8. **It has barely run on real hardware.** One converted Mac Mini, since
-   2026-09-27. Everything before that was a virtual machine, and nothing older
-   or stranger than that Mac Mini has been tried.
+8. **It has barely run on real hardware.** One converted Mac Mini. Everything
+   before it was a virtual machine, and nothing older or stranger than that Mac
+   Mini has been tried.
 9. **Using a text console on the terminal can silence it until it is
    restarted.** Sound follows whichever session is active on the seat, so
    switching to a text console and back leaves the terminal's session without

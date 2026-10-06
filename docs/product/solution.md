@@ -61,20 +61,22 @@ written procedure. Nothing here has been watched working on an old machine.
 - **Who it serves:** terminal administrator, prospective adopter.
 - **What they get:** they can tell in ten seconds whether their old machine
   qualifies.
-- **State:** `real` for the apt family; `intended` for dnf.
-- **Evidence:** apt family claimed only. D-036 widened this requirement on
-  2026-10-04 and recorded that it widened the claim ahead of the observation.
-  **On dnf the installer is watched and the terminal is not.** The install half
-  of `docs/tests.md` 14b passed on a Fedora 44 VM on 2026-10-05: the family
-  detection, the dnf install path and the keyring suppression were watched
-  working on a real dnf machine. The unit coverage check is weaker evidence —
-  its pass condition is silence, and 14b records it as inferred from the run
-  reaching `Installed.` rather than directly observed. **No Fedora
-  machine has ever shown a session**, which is why the state stays `intended`
-  rather than `real` — this requirement is about a terminal that *runs*, and an
-  installer completing is not that. Two further gaps: the `openh264` package
-  name was added after that run, so the eighth package is unwatched code; and
-  tests 1, 3, 4, 7 and 10 have never been run on this family.
+- **State:** `real` for both families.
+- **Evidence:** D-036 widened this requirement on 2026-10-04 and recorded
+  openly that it widened the claim ahead of the observation. **On 2026-10-05 the
+  observation caught up, and this is the entry recording that the gap is
+  closed.** On Fedora 44 a terminal showed a session (test 1), came back into
+  one by itself after a reboot (test 7), resolved `openh264` rather than
+  Fedora's non-functional stub, and behaved identically with SELinux enforcing
+  and not enforcing (test 14c, the stated prerequisite). The install itself was
+  watched end to end earlier the same day. So "a terminal that runs" is now an
+  observation on both families rather than one.
+- **What `real` does not mean here.** It means the environment this requirement
+  describes has been seen carrying a working terminal. It does not mean every
+  other requirement has been watched on dnf: `docs/tests.md` tests 3, 4, 5 and
+  10 have never been run on that family, so **sound and the off-switch are
+  unwatched on Fedora** — and the off-switch is unwatched on apt too. Read each
+  requirement's own state; this one does not vouch for them.
 - **Identical either way:** every other requirement in this document applies
   unchanged on both families. Nothing is offered on one and withheld on the
   other. Only the step that installs software differs.

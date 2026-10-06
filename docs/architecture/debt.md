@@ -938,10 +938,22 @@ silently invalidate the check.
 **Status: the Fedora path is measured** (`dnf repoquery`, Fedora 44,
 2026-10-04), and **both construction sites are read directly from the files**
 (`encore-kiosk.service:28-30`; `encore-install.sh:42-48`, `:173`, `:183-184`).
-**That the suppression therefore fails on Fedora is read, not watched** — no
-terminal has ever been booted on Fedora, so neither the failed install nor the
-keyring prompt has been seen there. The apt-side observation the runtime
-symptom would reproduce is `docs/tests.md` and `BACKLOG.md` item 8, 2026-09-14.
+**That the suppression as originally written fails on Fedora is read, not
+watched** — the apt-side observation the runtime symptom would reproduce is
+`docs/tests.md` and `BACKLOG.md` item 8, 2026-09-14.
+
+**Corrected 2026-10-05: a terminal has now been booted on Fedora, and this
+paragraph used to say none ever had.** On 2026-10-05 a Fedora 44 machine showed a
+session with **no keyring prompt** — the exact symptom this item exists to name
+(`docs/tests.md` test 1). That is consistent with the repaired discovery working,
+and it is **not proof of it**, for a reason this record already carries: the
+installer never asks for `remmina-plugins-secret` (`stack.md`), so the plugin may
+simply not have been on that machine. If it was absent, a missing prompt says
+nothing about whether the suppression would have hidden it. **Asking H-1's
+question of this observation — if the suppression were doing nothing, would the
+screen have looked different? — the answer is "only if the plugin was installed",
+and nobody checked.** `rpm -q remmina-plugins-secret` on that machine is the one
+command that would settle it.
 
 ---
 

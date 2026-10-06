@@ -24,7 +24,7 @@ merely renamed.
 |---|---|
 | Package manager | **apt family or dnf family** (D-036, 2026-10-04) — nothing else |
 | Display server | Wayland only |
-| Mandatory access control | **no policy of our own, on either family.** SELinux enforcing is in scope and costs nothing; see the paragraph below |
+| Mandatory access control | **no policy of our own, on either family.** SELinux enforcing is in scope and costs nothing — measured against the policy 2026-10-04 and **since watched on a screen, 2026-10-05**: enforcing and permissive gave the same session on one Fedora 44 machine, once (`docs/tests.md` test 14c). See the paragraph below for what that does and does not cover |
 | Init | systemd only, **and ≥ 254** — `RestartSteps=` / `RestartMaxDelaySec=` arrived there and ADR-0007 depends on them. Older systemd ignores them silently and gives flat retries. |
 | Python | CPython 3, standard library only, **and ≥ 3.10** — see the paragraph below. Below it `encore-probe.py` does not import at all. **Corrected 2026-09-23 down from 3.14**, which was derived from a defect since fixed. |
 | Hardware | none assumed — 32-bit and ARM must be considered in scope. **No machine is refused for its processor any more, as of 2026-10-04**, but one can still be refused for its library layout: `encore-install.sh:46` used to `die "unsupported architecture"` on anything but `x86_64`, `aarch64` and `armv7l` — an artefact of constructing a Debian multiarch path, never a product limit, ruled out by the product manager as a deliberate behaviour change. **The refusal moved rather than ended:** a machine whose plugin path the unit does not name is still turned away, by the coverage check at `:282-285`, later and with a message naming the line to add. R-2's cost is reduced, not eliminated. **This row first claimed the refusal was gone; that was corrected the same day — see `debt.md` D-A20, which carries the trail** |
@@ -108,18 +108,32 @@ on either family.** D-036's "one implementation" claim survives intact: no
 policy module, no Fedora-only component, and so no ADR — there is no decision
 left to take.
 
-**What is read rather than measured, and it is the part that matters.**
-Everything above is policy and labelling. **None of it is a terminal.** A
-session can still be refused by a rule that has nothing to do with file labels,
-and a refusal can be invisible: `dontaudit` rules suppress denials without
-logging them, and this policy carries **102** of them reaching
-`unconfined_service_t`, **164** reaching `unconfined_t` and **121** reaching
-`init_t`. A clean AVC log is therefore not evidence of anything. The smallest
-thing that would settle it is two boots on one scratch Fedora machine — install,
-boot the target once with `setenforce 0` and once with `setenforce 1`, and
-compare what appears on the screen. If they match, SELinux is out of the picture
-for good; if they differ, `semodule -DB` and `ausearch` name the rule. That is
-not a policy question and it belongs to the Fedora conversion, not here.
+**That was all policy and labelling, and none of it was a terminal. It has now
+been watched on a screen — 2026-10-05, Fedora 44, `docs/tests.md` test 14c.**
+
+This paragraph used to end with the prerequisite rather than the answer, and the
+prerequisite was the right one, so it is worth keeping what it said and why.
+Everything measured above is policy and labelling; a session can still be refused
+by a rule that has nothing to do with file labels, and such a refusal can be
+invisible, because `dontaudit` rules suppress denials without logging them and
+this policy carries **102** of them reaching `unconfined_service_t`, **164**
+reaching `unconfined_t` and **121** reaching `init_t`. **A clean AVC log is
+therefore not evidence of anything**, which is why the only check named here was
+to look at the screen: isolate the target with `setenforce 0`, isolate it again
+with `setenforce 1`, and compare. That was run, and **the two screens were the
+same.** No rule had to be named, so there is no policy module, no Fedora-only
+component, and still no decision left to take.
+
+**What that observation covers, exactly, and it is less than "SELinux is out of
+the picture for good".** It is two isolates on **one** machine, **once**. It does
+not reproduce boot conditions — a Fedora reboot came back into a working session
+by itself the same day (test 7), but nothing recorded which SELinux mode that
+boot came up in, so the enforcing comparison is the pair of isolates and nothing
+else. And a screen that matches tells us the *same* thing happened twice; it does
+not tell us a `dontaudit` rule is not quietly suppressing the same denial in both
+runs. The claim this row can now make is that **SELinux enforcing has been seen
+not to change the outcome**, which is what C-1 needed, and not that it has been
+proven irrelevant.
 
 **Consequence nobody has priced yet:** "no hardware assumed" plus "Wayland
 only" is a real tension on old machines. A 2009 iMac or an old PC with an
@@ -201,10 +215,18 @@ four years old, every release in scope ships something newer on either family
 the failure mode is now a loud `SyntaxError` at import rather than a silent
 misclassification.
 
-**Only one hardware combination has ever been observed**, on 2026-09-23: x86_64
-on a clean Ubuntu 26.04 VM, with Remmina 1.4.43, cage 0.2.1 and FreeRDP 3.31.
-The 32-bit and ARM halves of the row above are in scope on paper and untested
-in fact. `encore-install.sh:37-43` does name all three architecture triplets,
+**Only one hardware combination has ever been *recorded***, on 2026-09-23:
+x86_64 on a clean Ubuntu 26.04 VM, with Remmina 1.4.43, cage 0.2.1 and FreeRDP
+3.31. The 32-bit and ARM halves of the row above are in scope on paper and
+untested in fact.
+
+**A second machine was watched working on 2026-10-05 — Fedora 44 — and nobody
+wrote down what it was.** Processor, and whether it was physical or virtual, were
+not reported, so this paragraph cannot say whether that was a second hardware
+combination or the same one again. It is recorded as a gap rather than guessed at,
+because the guess would be the whole value of the sentence. **This is a question
+for the author, not a measurement anybody can repeat later**: the machine is
+known to them and unknowable from here. `encore-install.sh:37-43` does name all three architecture triplets,
 so the intent is built in even though it is unproven.
 
 ---
@@ -421,7 +443,12 @@ The six, oldest first, each already recorded where it bites:
 6. **Test 14b's install half passed while the one line nothing has exercised
    was added afterwards.** An installer that completes is not a terminal that
    runs, and a run that predates a line is no evidence about that line.
-   `stack.md`, 2026-10-05.
+   `stack.md`, 2026-10-05. **Closed the same day, by observation**: a later
+   install on Fedora 44 ran with the `openh264` line in place and `rpm -q
+   openh264 noopenh264` then showed the real package installed and the stub
+   absent. Kept here rather than deleted — the instance was found by asking H-1's
+   question of a passing test, and a closed instance with its resolution is worth
+   more to the seventh reader than a gap would be.
 
 **Instances 5 and 6 are the same defect one level apart**, which is the clearest
 statement of why this needs a name: a stub that satisfies a dependency while
@@ -430,8 +457,13 @@ nothing, are one hazard at two altitudes. Finding it in the packaging taught
 nobody to look for it in the test record, because nothing connected them.
 
 **What this does not say.** It sets no number, forbids nothing, and orders no
-work — the six instances are already recorded, three of them now guarded or
-repaired (3, 4 and 5) and three still open (1, 2 and 6).
+work — the six instances are already recorded, and **as of 2026-10-05 four of
+them are shut and two are open.** Three are guarded or repaired (3, 4 and 5,
+and 5's guard has since been watched working), one is closed by observation (6),
+and **1 and 2 are still open** — `systemctl status` still reports
+`active (running)` for a terminal that has failed, and `Wants=` still lets the
+target succeed when the terminal does not. Those two are the oldest and the
+costliest, and nothing about the Fedora observations touched either.
 It exists so that the seventh is recognised on sight. `CONTRIBUTING.md`'s
 evidence rules name the neighbouring mistake, reasoning from configuration to
 runtime, which is about how a person reads a machine; this one is about how a

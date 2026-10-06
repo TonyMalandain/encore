@@ -35,14 +35,23 @@ does not outlast a restart does not satisfy R-8. `isolate` is the
 until-reboot form and `set-default` is the lasting one; both are offered
 deliberately.
 
-**Unresolved, and it is the isolate half:** `systemctl isolate` on a machine
-already running a desktop did **not** bring the capability's console to the
-foreground. Whether a machine that *boots* straight into
-`encore-kiosk.target` behaves the same way is **untested** — the reboot test
-(Test 7) has never been run. Both branches matter: if boot is also affected,
-`ExecStartPre=+/usr/bin/chvt 7` is not sufficient and the console choice is
-wrong; if only `isolate` is affected, the fault is in switching away from a
-live session and the lasting activation path is sound. Neither is established.
+**It was the isolate half, and that is now an observation rather than a fork —
+2026-10-05.** `systemctl isolate` on a machine already running a desktop did
+**not** bring the capability's console to the foreground. This paragraph then
+said the boot path was untested and named two branches: either boot is affected
+too, in which case `ExecStartPre=+/usr/bin/chvt 7` is not sufficient and the
+console choice is wrong, or only `isolate` is affected, in which case the fault
+is in switching away from a live session and the lasting activation path is
+sound. **Test 7 has since been watched passing** — a Fedora 44 machine was
+rebooted and came back into a working session by itself, nothing done by hand —
+so the boot path reached a visible session and the second branch is the one that
+holds.
+
+**Once, on one machine, on the other family.** The isolate failure was seen on an
+apt VM and the boot pass on a dnf machine, so this is not the same machine doing
+both and the comparison is weaker than it looks. The `isolate` form is still the
+one with an unexplained failure against it, and it is still offered to
+adopters.
 
 ---
 

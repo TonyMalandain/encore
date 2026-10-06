@@ -9,30 +9,35 @@ more than a pass you assume.
 
 Status column is what has actually been watched, not what is believed.
 
-**Every status in tests 1 to 13 is an apt-family observation unless a Fedora
-machine is named in it, and none is** — the two Fedora lines in test 12a are
-off-target mechanism checks on a workstation, not a converted machine. D-036
-claimed the dnf family on 2026-10-04. Since then **the install half of 14b has
-been watched on a Fedora 44 VM, 2026-10-05, and nothing else has** — no Fedora
-machine has shown a session. See 14b for the four things that observation
-covers and the one it does not.
+**Most statuses in tests 1 to 13 are apt-family observations. A Fedora machine
+is now named in three of them** — tests 1 and 7 passed on Fedora 44 on
+2026-10-05, and the two Fedora lines in test 12a are off-target mechanism
+checks on a workstation rather than on a converted machine.
+
+**D-036 claimed the dnf family on 2026-10-04, and on 2026-10-05 the claim was
+caught up with.** A Fedora terminal has shown a session, kept it across a
+reboot, resolved `openh264` rather than the stub, and behaved identically with
+SELinux enforcing and not enforcing. Test 14 is answered in both halves.
+**What is still unwatched on dnf is tests 3, 4, 5 and 10** — notably sound, and
+notably the off-switch, which is the product's reversibility promise and has
+never been watched on *either* family.
 
 | Test | What it answers | Status |
 |---|---|---|
-| 1 | Does a session appear at all? | Passed, VM, 2026-09-14 and again 2026-09-23 from a clean install |
+| 1 | Does a session appear at all? | Passed, VM, 2026-09-14 and again 2026-09-23 from a clean install · **Passed on the dnf family** — Fedora 44, 2026-10-05, reported by the author: the screen showed the session, with no keyring prompt, no dialog and not the client's own window. **This is the first time this test has answered yes on a family other than apt** |
 | 2 | What happens when the connection drops? | Never run |
 | 3 | What happens with no profile? | Failed as expected, VM, 2026-09-14 |
 | 4 | Does the off-switch give the machine back? | **Never run, on either family** — and since 2026-10-05 the uninstaller has family-dependent behaviour of its own, so this row now covers two unwatched things rather than one. The package list it prints is checked off-target by 14a check 7; **an uninstall itself has never been watched anywhere.** R-11 is the product's reversibility promise and this is the test behind it |
 | 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed, including across restarts** — VM and Mac Mini, 2026-09-29; the restart failure was item 5c and is fixed and observed fixed, VM, 2026-09-30 · **5b channel loads** — the input channel came up on the intended sound system, VM, 2026-09-30; nobody has spoken into it · 5c never run |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
-| 7 | Does it survive a reboot? | Never run |
+| 7 | Does it survive a reboot? | **Passed on the dnf family** — Fedora 44, 2026-10-05, reported by the author: the machine was rebooted and came back into a working session by itself, with nothing done by hand · **never run on apt**, which is the odd result here: the family this product has shipped on longest has never had its reboot watched, and the newer one has |
 | 8 | Where does this machine read the global certificate file? | Never run |
 | 9 | What does the screen show when the handshake is refused? | Never run |
 | 10 | Does running setup again leave a working terminal? | Never run |
 | 11 | Does the probe agree with the target? | Never run |
 | 12 | Does the sound guard tell a live sound server from a socket a dead session left? | **12a passed** — Fedora workstation, `bash` and `dash`, 2026-09-29 · **12b passed** — VM, 2026-09-30, twice on consecutive fast restarts: both sockets found stale, both removed, server started, five output devices · 12a never run on the test VM, and no longer needs to be |
 | 13 | Is `/run/user/<uid>` reused across a restart? | **Answered: yes** — VM, 2026-09-30, by 12b rather than by this procedure. Sockets from an ended session were still present, so the directory outlives the session and no existence test in `start_sound` ever meant what it appeared to |
-| 14 | Does a dnf-family machine convert and run? | **Converts: the install half of 14b passed** — Fedora 44 VM, 2026-10-05, watched end to end from `==> package manager: dnf` to `Installed.` · **Runs: never run** — no Fedora machine has shown a session, so this row answers half its question · the `openh264` package name was added *after* that run and is the one line in the install not exercised · 14c never run, and the architect names it as the prerequisite before a Fedora terminal may be called working |
+| 14 | Does a dnf-family machine convert and run? | **Answered: yes, both halves.** 14a passed off-target (seven checks) · **14b converts** — Fedora 44 VM, 2026-10-05, watched from `==> package manager: dnf` to `Installed.` · **14b runs** — Fedora 44, 2026-10-05, the screen showed a session (test 1) and kept it across a reboot (test 7) · **`openh264` won, not the stub** — the re-run put the eighth package on the machine and `rpm -q openh264 noopenh264` showed the stub absent, so no line of the install is unexercised any more · **14c passed** — the screen was the same with SELinux enforcing and not enforcing, which was the stated prerequisite before a Fedora terminal could be called working · still unrun on dnf: tests 3, 4, 5 and 10 |
 
 ---
 
@@ -996,11 +1001,32 @@ installed, no `encore` identity created, neither `encore-install.sh` nor
 
 ### 14b — a scratch Fedora machine converts
 
-**Install half passed — Fedora 44 VM, 2026-10-05. Terminal half never run.**
+**Passed, both halves — Fedora 44, 2026-10-05.**
 
-The install was watched end to end on a scratch Fedora 44 virtual machine, by
-the author, from the printed output of `sudo ./encore-install.sh`. Four things
-are now observation rather than belief:
+**The terminal half, reported by the author.** The screen showed the session —
+no keyring prompt, no dialog, not the client's own window. The machine was
+rebooted and came back into a working session by itself, with nothing done by
+hand (test 7). And the re-run resolved the eighth package correctly:
+`rpm -q openh264 noopenh264` showed `openh264` installed and the stub absent,
+so **the `openh264` line is no longer unexercised code** and the fresh-Fedora
+`noopenh264` defect is now watched being prevented rather than argued about
+from repository metadata.
+
+**Not watched on this machine, and not claimed:** tests 3, 4, 5 and 10. Sound
+in particular — a session on the screen says nothing about whether it has
+sound. And test 4, the off-switch, which has never been watched on either
+family.
+
+**One gap in this record, left open rather than guessed:** whether the terminal
+half ran on the Fedora 44 virtual machine used for the install or on the
+author's other Fedora machine. The version is recorded; the hardware is not.
+That matters to one claim only — the README's "it has barely run on real
+hardware" — and nowhere else, so it is noted here rather than resolved by
+assumption.
+
+**The install half**, watched end to end on a scratch Fedora 44 virtual
+machine, by the author, from the printed output of `sudo ./encore-install.sh`.
+Four things are observation rather than belief:
 
 - **`==> package manager: dnf`** printed before anything was installed. The
   family block picked the dnf arm on a real dnf machine, not off-target.
@@ -1019,31 +1045,39 @@ are now observation rather than belief:
   named correctly. The run ended `Installed.` with the expected
   `WARNING: the password appears in the journal.`
 
-**The one thing this run does not cover: `openh264`.** That package name was
-added to the dnf arm *after* this observation, in `cb94d97`. The run installed
-**seven** packages; the installer now asks for **eight**. So the stub-versus-real
-decoder checks below have never been exercised anywhere, on any machine, and
-the fresh-Fedora `noopenh264` defect has never been watched either happening or
-being prevented. Treat the `openh264` line as unwatched code.
+**What the install run did not cover, and the re-run did.** That first run was
+made before `openh264` was added to the dnf arm in `cb94d97`: it installed
+**seven** packages where the installer now asks for **eight**, so for a day the
+`openh264` line was unwatched code and this section said so. The re-run closed
+it. Kept here rather than deleted, because the gap is the useful part: **a test
+run that predates the line it is cited as evidence for proves nothing about
+that line**, and the record claimed a pass for a day while that was true. That
+is `H-1` in `docs/architecture/constraints.md`, instance 6, now closed.
 
-**Nothing in this run was a terminal.** An install completing is not a screen
-showing a session. `R-1` stays `intended` for dnf and `BACKLOG.md` item 16
-stays open until a Fedora machine shows a session.
+**And an install completing was never a terminal.** For the day between the two
+runs, this file recorded a converting machine and no session, `R-1` stayed
+`intended`, and item 16 stayed open. That was the right call and it is worth
+noting that it held: the pressure to read a clean install as a working terminal
+was real, and the record did not give way to it.
 
-#### What is left to run
+#### The procedure, for the next time
+
+**All of this has now been run and passed on Fedora 44, 2026-10-05.** It is kept
+because this test is the one that earns its keep on every change to the
+installer, and because the next family — or the next Fedora release — needs the
+same sequence rather than a fresh guess at it.
 
 Needs a Fedora machine that can be snapshotted and reverted — not the author's
-workstation, which is the RDP target and out of scope (D-002). Re-run the
-install on a fresh snapshot so the eighth package is exercised, then carry on
-past where the first run stopped. Record, in order and by observation:
+workstation, which is the RDP target and out of scope (D-002). Record, in order
+and by observation:
 
 - `==> package manager: dnf` appears before anything is installed. *(Watched
   2026-10-05. Confirm it again rather than assuming it — the point of a
-  re-run is that the installer changed since.)*
-- the eight dnf package names install. *(Seven were watched 2026-10-05. The
-  eighth is `openh264`, below, and is the reason this re-run exists.)*
-- **NOT YET WATCHED ANYWHERE — `openh264` is in the transaction, and
-  `noopenh264` is not what satisfies `libopenh264.so.8`.** This can only be
+  re-run is that the installer may have changed since.)*
+- the eight dnf package names install. *(Watched 2026-10-05, all eight.)*
+- **`openh264` is in the transaction, and `noopenh264` is not what satisfies
+  `libopenh264.so.8`.** *(Watched 2026-10-05: `rpm -q openh264 noopenh264`
+  showed the real package installed and the stub absent.)* This can only be
   checked on a fresh Fedora. The author's workstation already carries the real
   decoder, so it cannot show the defect and was never made to; and the
   2026-10-05 VM run happened before this package name existed. Read the
@@ -1076,15 +1110,31 @@ past where the first run stopped. Record, in order and by observation:
   check. Silence is the pass condition here, so this is the weakest of the
   four observations — a check that passes by printing nothing looks identical
   to a check that did not run.)*
-- **then the terminal, which is the half nobody has seen.** Tests 1, 3, 4, 7
-  and 10 from this file, which have never been run on this family. Until test
-  1 shows a session on a Fedora machine, this family has a working installer
-  and an unproven terminal.
+- **then the terminal.** *(Tests 1 and 7 watched 2026-10-05: a session on the
+  screen, and a reboot that came back into one by itself.)* **Tests 3, 4, 5 and
+  10 have still never been run on this family** — no profile, the off-switch,
+  sound, and a repeated setup. Sound is the gap most likely to be noticed by
+  whoever lives with the terminal; the off-switch is the one with the largest
+  promise behind it (`R-11`) and it is unwatched on *both* families.
 
 ### 14c — does SELinux change what the screen shows?
 
-**Never run.** **The architect named this as the one prerequisite before a
-Fedora terminal may be called working** (`constraints.md` C-1). Everything
+**Passed — Fedora 44, 2026-10-05, reported by the author. The two screens were
+the same.** So SELinux does not change what a Fedora terminal shows, and
+`constraints.md` C-1 can now say that from a screen rather than from labels.
+
+**What the pass covers, stated narrowly:** two screens, on one machine, once.
+It is the strongest evidence available and it is not proof that no SELinux
+refusal exists anywhere in this product on any Fedora machine — the policy
+carries over a hundred `dontaudit` rules per domain, so a refusal can still be
+silent. What it does rule out is the thing that mattered: SELinux making the
+difference between a terminal that works and one that does not.
+
+**This was the prerequisite the architect named before a Fedora terminal could
+be called working** (`constraints.md` C-1). It is met. The procedure is kept
+below for the next Fedora release.
+
+Everything
 measured there is policy and labelling; none of it is a terminal, and a refusal
 can be invisible — that policy carries 102 `dontaudit` rules reaching
 `unconfined_service_t`, 164 reaching `unconfined_t` and 121 reaching `init_t`,

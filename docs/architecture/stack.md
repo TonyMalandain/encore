@@ -21,28 +21,50 @@ strongest argument in this file and it was quietly becoming false.
 | Remmina | no | 1.4.43 | remote desktop client | ADR-0001 |
 | FreeRDP (via Remmina) | no | 3.31 | the RDP protocol | ADR-0004 |
 | `kbd` (`chvt`) | no | — | bringing the capability's console to the foreground | — |
-| H.264 decoder (`libopenh264`, loaded by FreeRDP) | no | **never observed, on either family** | software H.264 decoding for the session — there is no hardware path to use | D-036; named on dnf by D-037's withdrawal |
+| H.264 decoder (`libopenh264`, loaded by FreeRDP) | no | **never observed decoding anything, on either family** — the real library was watched *installed* on Fedora 44, 2026-10-05, which is a different claim | software H.264 decoding for the session — there is no hardware path to use | D-036; named on dnf by D-037's withdrawal |
 | POSIX `sh` | n/a | — | the runner (16 lines) and the install/uninstall scripts (~170 and ~140) | — |
 | PAM (`PAMName=login`) | n/a | — | acquiring a logind seat so libseat can take the console | — |
 | CPython | no, **but ≥ 3.10 is required** (corrected 2026-09-23 down from 3.14) | 3.14.7, and the suite also runs on 3.11.16 and 3.10.21 (and OpenSSL 3.5.7 beneath it) | the certificate probe (~500 lines), standard library only — no third-party module, ever | ADR-0008 |
 
-The "version seen working" column is one observation: a clean Ubuntu 26.04
-x86_64 VM on 2026-09-23. It is not a support matrix and nothing else has ever
-been tried. **Nothing in it has been seen working on Fedora** — D-036 claimed
-the dnf family on 2026-10-04 and no terminal has been booted there.
+Every version number in that column is one observation: a clean Ubuntu 26.04
+x86_64 VM on 2026-09-23. It is not a support matrix.
 
-**`—` in that column means two different things, and the decoder row is the
-second.** For `kbd`, POSIX `sh` and PAM it means *present and working on the
-machine that was watched, with no version worth recording* — they were on the
-Ubuntu VM that produced a session. For the H.264 decoder it means *no
+**Corrected 2026-10-05 — a Fedora terminal has now been watched working, and
+this paragraph used to deny it.** It said "nothing in it has been seen working
+on Fedora — D-036 claimed the dnf family on 2026-10-04 and no terminal has been
+booted there". Three observations on a Fedora 44 machine on 2026-10-05 ended
+that: the remote desktop session was on the screen, with no keyring prompt and
+no dialog and none of the client's own windows (`docs/tests.md` test 1); the
+machine came back into a working session by itself after a reboot, with nothing
+done by hand (test 7); and the screen was the same with SELinux permissive and
+enforcing (test 14c).
+
+**No version in the column changes, and that is deliberate rather than an
+oversight.** Which Remmina, cage and FreeRDP the Fedora machine was running was
+not recorded, so the numbers in the column still belong to one family. What is
+established on dnf is the distribution release — Fedora 44 — and that every part
+in the table did its job there at least once. **The hardware was not recorded
+either**, so this column and the paragraph at the end of `constraints.md` C-1
+still describe one hardware combination and only one.
+
+**"No version" in that column means two different things, which is why the
+decoder row spells its own out instead of writing `—`.** For `kbd`, POSIX `sh`
+and PAM, `—` means *present and working on the machine that was watched, with no
+version worth recording* — they were on the Ubuntu VM that produced a session.
+For the H.264 decoder it would have meant *no
 observation has ever established that this part did any work*, and the two
 families are unwatched for different reasons. On apt the real library was on
 the Ubuntu VM that produced a session — but nothing checked whether that
 session negotiated H.264 at all, and the profile settings that would decide it
 are the never-examined ones under backlog item 13c, so a working session is not
-evidence about the decoder. On dnf the `openh264` name was added on 2026-10-05,
-*after* the only install ever watched on a dnf machine, so not even the install
-has resolved it. The row exists **because** it is unwatched — a part the file
+evidence about the decoder. On dnf, as of 2026-10-05, the *real library* has been
+watched arriving — the re-run install asked for `openh264` and `rpm -q openh264
+noopenh264` afterwards showed `openh264` installed and `noopenh264` absent — and
+a session has been watched appearing on that same machine. **Those two
+observations together still do not establish that the session negotiated H.264**,
+and the record must not let them, because the same profile settings decide it
+there as on apt. A working session is not a working decoder on either family.
+The row exists **because** that question is unanswered — a part the file
 omits is a part the file disagrees with a real machine about, which is exactly
 what happened with `kbd` below.
 
@@ -108,15 +130,23 @@ decoding; nothing here is hardware acceleration, which is what D-037's
 withdrawal settled. The long form is the comment on the dnf arm of the family
 block and `docs/troubleshooting.md`.
 
-**And the eighth package has never been watched.** The only install ever seen on
-a dnf machine — Fedora 44, 2026-10-05, the install half of `docs/tests.md` test
-14b — predates the `openh264` line, so the one name that makes the two lists
-differ in length is unexercised code. That is instance 6 of the same hazard
-(`constraints.md` H-1), one level up from instance 5: the stub satisfied a
-dependency while decoding nothing, and the install run satisfied a test while
-exercising nothing. That is narrower than "nothing in it has
-been seen working on Fedora" above and does not soften it: an installer that
-completes is not a terminal that runs.
+**And the eighth package has now been watched — corrected 2026-10-05, the day
+after it was written.** This paragraph said the opposite: the only dnf install
+then on record (Fedora 44, 2026-10-05, the install half of `docs/tests.md` test
+14b) predated the `openh264` line, so the one name that makes the two lists
+differ in length was unexercised code, and that was instance 6 of
+`constraints.md` H-1 — a test run that predates a line is no evidence about that
+line. A later install on Fedora 44 the same day ran *with* the line in place, and
+`rpm -q openh264 noopenh264` on that machine then showed `openh264` installed and
+`noopenh264` absent.
+
+So **the stub was watched being displaced rather than reasoned about**, which is
+what the `Obsoletes:` line above predicted and is the whole point of naming the
+package. Instance 6 of H-1 is closed by observation and stays on file there with
+its resolution; instance 5's guard — naming `openh264` at all — is now observed
+working rather than read off package metadata. What it does **not** close is the
+row in the parts table above: the provider on the machine is settled, and whether
+any session ever asked it to decode a frame is not.
 
 **The capture tool item 7 needs is a third difference, and it is the one that
 will be missed**, because it is not in the installer yet and so will be written

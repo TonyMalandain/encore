@@ -28,8 +28,19 @@ list with the two divergent names as variables, and branches in exactly one
 `apt`" and that count is now meaningless** — the word appears fourteen times,
 nearly all of them in the comments explaining why apt is checked first. The
 figure was a measure of how little the installer assumed, and the right measure
-of that today is that **one `case` statement is the entire difference between
-the two families.**
+of that today is how few places decide anything by family.
+
+**That number became two on 2026-10-05, and this paragraph said one.** It read
+"one `case` statement is the entire difference between the two families". The
+installer's `case` is still the only place that *decides* behaviour, but
+`encore-uninstall.sh` now carries its own copy of both families' package lists in
+a `>>> leftovers block` region — it removes no packages under R-11 and prints them
+instead, and it cannot read the installer's copy, because the installer need not
+still be on the machine and the install record says nothing about the family.
+**So a package name now has to be changed in two shipped files**, the installer
+is the authority, and a disagreement is a defect in the uninstaller's copy.
+`docs/tests.md` 14a check 7 compares the two lists as strings. `stack.md` carries
+the detail.
 
 **Where the breadth did not pay out is the two places the design assumed a
 distribution, and they were the same assumption written twice** — Remmina's
@@ -119,8 +130,9 @@ unit (`:21-22`). See `docs/troubleshooting.md`.
 
 ## Status of this document
 
-**It has been watched working, twice.** This section used to say the opposite
-and was corrected on 2026-09-23.
+**It has been watched working three times, on both families.** This section used
+to say the opposite and was corrected on 2026-09-23; the third observation, and
+the first on dnf, was added on 2026-10-05.
 
 - **2026-09-14, on a VM:** a remote session appeared for the first time. Three
   things were needed that the record did not describe — the capability's
@@ -130,16 +142,25 @@ and was corrected on 2026-09-23.
 - **2026-09-23, on a clean Ubuntu 26.04 VM built from the written procedure:** a
   session appeared again, from nothing, by following `README.md`. Remmina
   1.4.43, cage 0.2.1, FreeRDP 3.31, x86_64.
+- **2026-10-05, on a Fedora 44 machine:** a session appeared on the screen — no
+  keyring prompt, no dialog, none of the client's own windows. The same machine
+  came back into a working session by itself after a reboot, with nothing done by
+  hand (Test 7), and showed the same screen with SELinux permissive and enforcing
+  (Test 14c, the prerequisite `constraints.md` C-1 had named before a Fedora
+  terminal could be called working). Fedora 44; **the versions of the parts and
+  the hardware were not recorded.**
 
-**Both were apt. Nothing has ever been watched on the dnf family**, which
-D-036 claimed on 2026-10-04 — so every observation on this page belongs to one
-of the product's two platforms, and the other one has none. That is the cost
-D-036 accepted in writing; it is repeated here because this is the page a
-reader comes to for what is real.
+**This page said "both were apt — nothing has ever been watched on the dnf
+family" until 2026-10-05, and D-036's unobserved half is now observed.** It is
+worth being exact about how much, because this is the page a reader comes to for
+what is real: on dnf, one machine has shown a session, survived a reboot, and
+been indifferent to SELinux. **What has never been watched on dnf is an uninstall
+(Test 4, never watched on either family, and the uninstaller gained
+family-dependent behaviour on 2026-10-05), a machine with no profile (Test 3),
+sound (Test 5), and a second run of setup (Test 10).**
 
 What is still a code read is named where it appears. In particular nothing
-about a *dropped* connection has ever been watched (Test 2 in `docs/tests.md`),
-and the reboot test (Test 7) has never been run.
+about a *dropped* connection has ever been watched (Test 2 in `docs/tests.md`).
 
 The record was opened on 2026-09-13 as a cold start: the product record had
 been written over a part-built prototype and explicitly handed the mechanism
