@@ -26,7 +26,7 @@ only the second removes the credential.
 | The unit and target files | `/etc/systemd/system/` | `encore-install.sh:155-156` | yes, inert | no |
 | The script | `/usr/local/bin/encore-kiosk.sh` | `encore-install.sh:154` | yes, inert | no |
 | The `encore` user and its home | `/etc/passwd`, `/var/lib/encore` | `encore-install.sh:88-94` | yes | no |
-| Packages (remmina, remmina-plugin-rdp, cage, kbd) | the system | `encore-install.sh:83` | yes | **yes, deliberately** (`encore-uninstall.sh:122-125`) |
+| Packages (seven on apt, eight on dnf — `stack.md` has the two-name table) | the system | `encore-install.sh:87` | yes | **yes, deliberately**, and named back to the operator by family (`encore-uninstall.sh`, `>>> leftovers block`) |
 | Logs | the journal, via `StandardOutput=journal` | systemd | yes | yes |
 
 **There is no database, no cache the product manages, and nothing that needs

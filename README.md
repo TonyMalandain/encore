@@ -17,9 +17,11 @@ front of anybody.
 On the machine you are converting:
 
 - **A Linux using `apt` or `dnf`.** Watched working on Raspberry Pi OS
-  "trixie" (October 2025), Ubuntu 26.04 and Debian 13 — or newer. **Fedora is
-  handled by the installer and has never been watched working:** no Fedora
-  machine has been converted and seen running, so you would be the first.
+  "trixie" (October 2025), Ubuntu 26.04 and Debian 13 — or newer.
+  **On Fedora, the install has been watched working and the terminal has
+  not.** The setup script ran to the end on a Fedora 44 machine on 2026-10-05.
+  But no Fedora machine has ever shown a session on its screen, so you would
+  be the first to see whether the terminal itself works. Expect to debug.
   No other package manager is supported.
 - **systemd 254 or newer** — `systemctl --version | head -1`
 - **Wayland**

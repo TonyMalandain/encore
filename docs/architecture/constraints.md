@@ -6,6 +6,11 @@ because the user is a child and the failure mode is an unmanaged computer in a
 bedroom. Absolutes are harder than percentages, and they are what the design
 must be judged against.
 
+**One section here is not a constraint.** `H-1` names a recurring *hazard* —
+a mechanism that reports success without doing its job — and is kept in this
+file because every instance of it is about what the system can and cannot
+detect. It sets no number and orders no work.
+
 **Names and citations corrected 2026-09-23.** This file was half-converted to
 the names D-022 and D-023 fixed: C-4 was still on the old ones while C-6 was on
 the new. Every `file:line` here has now been re-checked against the file, not
@@ -371,6 +376,66 @@ the time, not always, so an outage is an ordinary event a terminal waits
 through quietly. That closes the architect's Q-6, which had found the premise
 leaned on everywhere and stated nowhere. It does not supply the number Q-7
 asks for — how long a *person* may be shown nothing — which is still open.
+
+---
+
+## H-1 — A clean result that proves nothing
+
+**Named 2026-10-05.** This is not a constraint and it is not debt. It is a
+*failure mode* that has now been met six times, recorded across three documents
+under six different names, and never written down as one thing — so each time
+it is found, it is found again from scratch. It lives here because every
+instance is about what this system can and cannot *detect*, which is the
+subject of this file.
+
+**The shape.** A mechanism reports success without having done its job,
+because the thing it depends on is **satisfiable without being satisfied**. No
+error, no log line, no failed exit status. The result is clean and it is empty.
+
+**The one question that finds it, and it must be asked out loud:** *if the
+thing this checks were absent, broken, or doing nothing, would this report
+anything different?* If the answer is no, the check reports nothing and the
+pass is decoration. The question has to be asked when the check is **written**,
+because a check of this kind has, by construction, never been seen to fail —
+and so nothing will ever prompt the question later.
+
+The six, oldest first, each already recorded where it bites:
+
+1. **`systemctl status` reports `active (running)` for ever.** The runner
+   loops, so the unit's state is the same whether a session exists or not, and
+   the restart policy can never fire. `debt.md` D-A2.
+2. **`Wants=` means the target succeeds even when the terminal does not.**
+   `debt.md` D-A3 — the name of that item is this hazard stated exactly.
+3. **The installer's coverage loop reports success over an empty list.** `for p
+   in $SECRET_PLUGINS` does nothing, and dies about nothing, when the `find`
+   returned nothing — which is precisely what happened when that `find` ran
+   before the packages step and so searched a machine with no plugin on it yet.
+   `debt.md` D-A19.
+4. **A `systemd-analyze verify` check passed against a unit file that does not
+   exist.** The old wording looked for the *absence* of two strings, and
+   `./nope.service` has no strings at all. `docs/tests.md` test 14a check 2,
+   rewritten to require positive output.
+5. **`noopenh264` provides the decoder's soname and decodes nothing.** rpm's
+   requirement is satisfied, the install is clean, and H.264 silently does not
+   work. `stack.md`, and the withdrawal of D-037.
+6. **Test 14b's install half passed while the one line nothing has exercised
+   was added afterwards.** An installer that completes is not a terminal that
+   runs, and a run that predates a line is no evidence about that line.
+   `stack.md`, 2026-10-05.
+
+**Instances 5 and 6 are the same defect one level apart**, which is the clearest
+statement of why this needs a name: a stub that satisfies a dependency while
+decoding nothing, and a test run that satisfies a check while exercising
+nothing, are one hazard at two altitudes. Finding it in the packaging taught
+nobody to look for it in the test record, because nothing connected them.
+
+**What this does not say.** It sets no number, forbids nothing, and orders no
+work — the six instances are already recorded, three of them now guarded or
+repaired (3, 4 and 5) and three still open (1, 2 and 6).
+It exists so that the seventh is recognised on sight. `CONTRIBUTING.md`'s
+evidence rules name the neighbouring mistake, reasoning from configuration to
+runtime, which is about how a person reads a machine; this one is about how a
+mechanism reports on itself, and the two are worth keeping apart.
 
 ---
 

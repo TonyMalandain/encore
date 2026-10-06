@@ -21,6 +21,7 @@ strongest argument in this file and it was quietly becoming false.
 | Remmina | no | 1.4.43 | remote desktop client | ADR-0001 |
 | FreeRDP (via Remmina) | no | 3.31 | the RDP protocol | ADR-0004 |
 | `kbd` (`chvt`) | no | — | bringing the capability's console to the foreground | — |
+| H.264 decoder (`libopenh264`, loaded by FreeRDP) | no | **never observed, on either family** | software H.264 decoding for the session — there is no hardware path to use | D-036; named on dnf by D-037's withdrawal |
 | POSIX `sh` | n/a | — | the runner (16 lines) and the install/uninstall scripts (~170 and ~140) | — |
 | PAM (`PAMName=login`) | n/a | — | acquiring a logind seat so libseat can take the console | — |
 | CPython | no, **but ≥ 3.10 is required** (corrected 2026-09-23 down from 3.14) | 3.14.7, and the suite also runs on 3.11.16 and 3.10.21 (and OpenSSL 3.5.7 beneath it) | the certificate probe (~500 lines), standard library only — no third-party module, ever | ADR-0008 |
@@ -30,12 +31,49 @@ x86_64 VM on 2026-09-23. It is not a support matrix and nothing else has ever
 been tried. **Nothing in it has been seen working on Fedora** — D-036 claimed
 the dnf family on 2026-10-04 and no terminal has been booted there.
 
+**`—` in that column means two different things, and the decoder row is the
+second.** For `kbd`, POSIX `sh` and PAM it means *present and working on the
+machine that was watched, with no version worth recording* — they were on the
+Ubuntu VM that produced a session. For the H.264 decoder it means *no
+observation has ever established that this part did any work*, and the two
+families are unwatched for different reasons. On apt the real library was on
+the Ubuntu VM that produced a session — but nothing checked whether that
+session negotiated H.264 at all, and the profile settings that would decide it
+are the never-examined ones under backlog item 13c, so a working session is not
+evidence about the decoder. On dnf the `openh264` name was added on 2026-10-05,
+*after* the only install ever watched on a dnf machine, so not even the install
+has resolved it. The row exists **because** it is unwatched — a part the file
+omits is a part the file disagrees with a real machine about, which is exactly
+what happened with `kbd` below.
+
 ## The same parts, two package names each — added 2026-10-04 (D-036)
 
-Every part above is present on both families; **five of the seven packages
-`encore-install.sh:91-92` asks for carry the identical name and two do not.**
+Every part above is present on both families. **Of the eight names the family
+block asks for, five carry the identical name on both, two differ by name, and
+one is asked for on dnf only.** That last one arrived on 2026-10-05 and it
+changed the *shape* of the difference: until then the two lists differed in two
+names and were the same length. They are no longer the same length — **apt asks
+for seven packages and dnf asks for eight.**
+
 This table exists so the difference lives in the record rather than only in the
-installer, and so nobody has to re-derive it.
+installer, and so nobody has to re-derive it. The installer keeps every
+family-dependent name inside one marked region — `>>> family block` to
+`<<< family block` in `encore-install.sh` — and the single `PACKAGES=` line is
+the last statement in it. **That marker is the reference here, not a line
+number.** Two line numbers in this section have already gone stale (`:91-92` on
+2026-10-05, `:83` before it), and a file whose whole purpose is to stop people
+reading the installer should not send them to a line of it.
+
+**Since 2026-10-05 these names are written in a second shipped place, and a
+change to one of them has to be made twice.** `encore-uninstall.sh` removes no
+packages (R-11) and so prints them instead, for an operator who wants to clean
+up by hand — which means it carries its own copy of both lists, inside its own
+marked region, `>>> leftovers block` to `<<< leftovers block`. It cannot read
+the installer's: the installer need not still be on the machine, and
+`/var/lib/encore/encore-install.conf` records nothing about the family. The
+installer is the authority, because it is what installed them; a disagreement
+is a defect in the uninstaller's copy. `docs/tests.md` 14a check 7 compares the
+two lists as strings, so the drift is caught by a check rather than by a reader.
 
 | Part | apt name | dnf name |
 |---|---|---|
@@ -46,6 +84,39 @@ installer, and so nobody has to re-derive it.
 | sound server | `pipewire` | `pipewire` |
 | PulseAudio shim | `pipewire-pulse` | **`pipewire-pulseaudio`** |
 | session manager | `wireplumber` | `wireplumber` |
+| H.264 decoder | *nothing asked for* | **`openh264`** |
+
+**Why the decoder row has a package on one side and nothing on the other**, and
+why that is not an omission. On neither family is the decoder missing as a
+*library*: the client's own `freerdp-libs` carries
+`NEEDED libopenh264.so.8()(64bit)`, so rpm requires it automatically and the
+install is always clean. What differs is *which provider satisfies that
+requirement*. On Fedora two packages provide the same soname — `openh264`, from
+`fedora-cisco-openh264`, which is enabled by default, and `noopenh264` from
+Fedora proper, **a stub that provides the library and decodes nothing**. A fresh
+Fedora resolves the requirement to the stub: the link resolves, the install
+reports success, and H.264 silently does not work. **That is a named hazard in
+this record, `constraints.md` H-1** — a dependency satisfiable without being
+satisfied — and this is instance 5 of six. Naming `openh264` swaps the
+stub out with no extra flags, because it carries `Obsoletes: noopenh264 < 1:0`.
+Debian and Ubuntu ship the real library in `main` with no stub beside it, so on
+apt there is nothing to name. Measured on Fedora 44, 2026-10-05:
+`openh264-2.6.0-3.fc44` obsoletes `noopenh264 < 1:0`, both packages provide
+`libopenh264.so.8()(64bit)`, and the stub ships in the Fedora repository while
+the real decoder ships in `fedora-cisco-openh264`. This is **software**
+decoding; nothing here is hardware acceleration, which is what D-037's
+withdrawal settled. The long form is the comment on the dnf arm of the family
+block and `docs/troubleshooting.md`.
+
+**And the eighth package has never been watched.** The only install ever seen on
+a dnf machine — Fedora 44, 2026-10-05, the install half of `docs/tests.md` test
+14b — predates the `openh264` line, so the one name that makes the two lists
+differ in length is unexercised code. That is instance 6 of the same hazard
+(`constraints.md` H-1), one level up from instance 5: the stub satisfied a
+dependency while decoding nothing, and the install run satisfied a test while
+exercising nothing. That is narrower than "nothing in it has
+been seen working on Fedora" above and does not soften it: an installer that
+completes is not a terminal that runs.
 
 **The capture tool item 7 needs is a third difference, and it is the one that
 will be missed**, because it is not in the installer yet and so will be written
@@ -63,17 +134,22 @@ or may not already be on an adopter's machine. That is not a reason to relax
 the suppression — see `debt.md` D-A19, where the suppression is measured to
 miss on Fedora for an unrelated reason.
 
-**`kbd` was added to this table on 2026-09-23.** It is installed by
-`encore-install.sh:83` and the unit depends on `chvt` at `:16` and `:18`. It
+**`kbd` was added to this table on 2026-09-23.** It is installed by the
+`PACKAGES=` line in the family block (the reference that went stale as `:83`),
+and the unit depends on `chvt` in its `ExecStartPre=` and `ExecStopPost=`
+(which is where the stale `:16` and `:18` pointed; they are
+`encore-kiosk.service:39` and `:41` today, and this sentence no longer tracks
+them). It
 had been missing from the record entirely, which means the stack had five parts
 in this file and six on a real machine.
 
 **Nothing is version-pinned anywhere, and under D-027 nothing ever will be by a
 resolver.** This section used to say "packaging (R-4) is the place to declare
 minimum versions, and it must". There is no packaging (D-027, 2026-09-23), so
-the only place left is `encore-install.sh` — and it does not check a version of
-anything (`:79-83`). Two consequences follow, and both are now the installer's
-or nobody's:
+the only place left is `encore-install.sh` — and its packages step does not
+check a version of anything (`:79-83` when written; the step is now the
+`case "$PKG_FAMILY"` block, and the reference is deliberately by name). Two
+consequences follow, and both are now the installer's or nobody's:
 
 - **The systemd ≥ 254 floor that ADR-0007 depends on is unenforced.** Older
   systemd ignores `RestartSteps=` and `RestartMaxDelaySec=` silently and gives
@@ -157,7 +233,8 @@ Sources: [Remmina Kiosk Edition](https://remmina.org/remmina-kiosk-edition/),
   Would make `XDG_RUNTIME_DIR`, the Wayland socket and PipeWire correct by
   construction. **Corrected 2026-09-23:** this used to say "exactly the thing
   currently broken by `ProtectHome=true`". `ProtectHome=` is now commented out
-  (`encore-kiosk.service:35`) precisely because it broke that, so the symptom
+  (commented out in `encore-kiosk.service`; the reference used to read `:35`,
+  and it is `:58` today) precisely because it broke that, so the symptom
   is gone and the structural point stands on its own — a system unit is still
   hand-building what a user session provides. See `debt.md`, items D-A4 and
   D-A6.

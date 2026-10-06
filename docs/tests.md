@@ -12,14 +12,17 @@ Status column is what has actually been watched, not what is believed.
 **Every status in tests 1 to 13 is an apt-family observation unless a Fedora
 machine is named in it, and none is** — the two Fedora lines in test 12a are
 off-target mechanism checks on a workstation, not a converted machine. D-036
-claimed the dnf family on 2026-10-04 and nothing has been watched there.
+claimed the dnf family on 2026-10-04. Since then **the install half of 14b has
+been watched on a Fedora 44 VM, 2026-10-05, and nothing else has** — no Fedora
+machine has shown a session. See 14b for the four things that observation
+covers and the one it does not.
 
 | Test | What it answers | Status |
 |---|---|---|
 | 1 | Does a session appear at all? | Passed, VM, 2026-09-14 and again 2026-09-23 from a clean install |
 | 2 | What happens when the connection drops? | Never run |
 | 3 | What happens with no profile? | Failed as expected, VM, 2026-09-14 |
-| 4 | Does the off-switch give the machine back? | Never run |
+| 4 | Does the off-switch give the machine back? | **Never run, on either family** — and since 2026-10-05 the uninstaller has family-dependent behaviour of its own, so this row now covers two unwatched things rather than one. The package list it prints is checked off-target by 14a check 7; **an uninstall itself has never been watched anywhere.** R-11 is the product's reversibility promise and this is the test behind it |
 | 5 | Is there sound? Three parts: 5a out, 5b in, 5c a terminal with no microphone | **5a passed, including across restarts** — VM and Mac Mini, 2026-09-29; the restart failure was item 5c and is fixed and observed fixed, VM, 2026-09-30 · **5b channel loads** — the input channel came up on the intended sound system, VM, 2026-09-30; nobody has spoken into it · 5c never run |
 | 6 | Must the encryption key travel between machines? | Answered no, VM, 2026-09-23 |
 | 7 | Does it survive a reboot? | Never run |
@@ -29,7 +32,7 @@ claimed the dnf family on 2026-10-04 and nothing has been watched there.
 | 11 | Does the probe agree with the target? | Never run |
 | 12 | Does the sound guard tell a live sound server from a socket a dead session left? | **12a passed** — Fedora workstation, `bash` and `dash`, 2026-09-29 · **12b passed** — VM, 2026-09-30, twice on consecutive fast restarts: both sockets found stale, both removed, server started, five output devices · 12a never run on the test VM, and no longer needs to be |
 | 13 | Is `/run/user/<uid>` reused across a restart? | **Answered: yes** — VM, 2026-09-30, by 12b rather than by this procedure. Sockets from an ended session were still present, so the directory outlives the session and no existence test in `start_sound` ever meant what it appeared to |
-| 14 | Does a dnf-family machine convert and run? | Never run — see 14a for what has been checked off-target |
+| 14 | Does a dnf-family machine convert and run? | **Converts: the install half of 14b passed** — Fedora 44 VM, 2026-10-05, watched end to end from `==> package manager: dnf` to `Installed.` · **Runs: never run** — no Fedora machine has shown a session, so this row answers half its question · the `openh264` package name was added *after* that run and is the one line in the install not exercised · 14c never run, and the architect names it as the prerequisite before a Fedora terminal may be called working |
 
 ---
 
@@ -110,6 +113,10 @@ systemctl get-default
 the promise with the least behind it: with no package manager keeping the file
 list, removal is only as correct as `encore-uninstall.sh` — so this test earns
 its keep every time the installer changes.
+
+One part of this script can be checked without a converted machine: the list of
+packages it says it left behind differs by family, and 14a check 7 runs those
+shipped lines for each family off-target.
 
 ## Test 5 — is there sound?
 
@@ -511,7 +518,7 @@ where that gets paid off rather than assumed.
 
 ### 14a — off-target: no Fedora terminal needed
 
-Six checks. Each one runs against the real shipped files, or against fabricated
+Seven checks. Each one runs against the real shipped files, or against fabricated
 inputs in a temporary directory where the point is the mechanism rather than
 the file. Nothing is installed, and **no fabricated file ever stands in for
 something the product ships or the system provides** — a copy of a shipped file
@@ -586,7 +593,7 @@ each time it appears.
    **Pass**, on a Fedora machine — read-only, nothing installed. Eight names:
    the seven both families need, plus `openh264`, which **only the dnf side
    asks for**. On Fedora the automatic `libopenh264.so.8` requirement under
-   `libfreerdp3` is satisfied by default from Fedora's own repositories by
+   `freerdp-libs` is satisfied by default from Fedora's own repositories by
    `noopenh264`, **a stub that links and decodes nothing**, so the install is
    clean and the session is unusable. Naming `openh264` swaps the stub out
    (it carries `Obsoletes: noopenh264 < 1:0`) from
@@ -714,6 +721,128 @@ each time it appears.
    the search has been moved back up to sit with the other variable
    assignments — which reads tidier and reinstates the defect.
 
+7. **The uninstaller's list of what it left behind is true on the family it
+   prints on.** `encore-uninstall.sh` removes no packages — that is R-11 and is
+   correct — so it names them instead, for somebody who wants to clean up by
+   hand. A list written from one family's names is wrong on the other in both
+   directions at once: it gives two packages that do not exist and hides one
+   that does, and a wrong name defeats the only use the list has.
+
+   **The uninstaller still parses, on both shells the targets use** — the same
+   reason as check 1, for the other shipped script:
+
+   ```sh
+   sh -n encore-uninstall.sh && dash -n encore-uninstall.sh && echo "syntax ok"
+   ```
+
+   **Pass:** `syntax ok`.
+
+   **The shipped lines themselves, run for each family, with the package
+   manager fabricated.** Three stub trees under `mktemp -d`, each holding one
+   executable called `apt-get` or `dnf` or nothing at all, and `PATH` pointing
+   at exactly one of them. The stubs are never run — `command -v` only asks
+   whether they are there — and they stand in for nothing the system provides,
+   because the thing under test is the question, not the package manager.
+   **The interpreter is named absolutely**, for the reason check 3 gives.
+   `set -eu` is prepended so a branch that forgets a variable fails here
+   instead of at the end of somebody's uninstall:
+
+   ```sh
+   T=$(mktemp -d)
+   echo "block lines: $(sed -n '/^# >>> leftovers block/,/^# <<< leftovers block/p' encore-uninstall.sh | grep -c .)"
+   for pm in apt-get dnf none; do
+     mkdir -p "$T/$pm"
+     [ "$pm" = none ] || { printf '#!/bin/sh\nexit 0\n' > "$T/$pm/$pm"; chmod +x "$T/$pm/$pm"; }
+     { echo 'set -eu'
+       sed -n '/^# >>> leftovers block/,/^# <<< leftovers block/p' encore-uninstall.sh
+       echo 'echo "'"$pm"'|$LEFT_PACKAGES|$LEFT_UNNAMED"'
+     } | env PATH="$T/$pm" /bin/sh; echo "  exit=$?"
+   done
+   rm -rf "$T"
+   ```
+
+   **`block lines:` is the control, and it must not be zero.** Without it this
+   check is the empty-list trap again: a renamed marker or a moved block makes
+   `sed` print nothing, and a pass condition phrased as "no wrong names" is
+   satisfied by a run that executed no shipped line at all. Stated positively
+   instead — these three lines exactly, and `exit=0` under each:
+
+   ```
+   apt-get|remmina remmina-plugin-rdp cage kbd pipewire pipewire-pulse wireplumber|
+   dnf|remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber openh264|
+   none|remmina cage kbd pipewire wireplumber|the RDP plugin, the PulseAudio shim and any H.264 decoder
+   ```
+
+   **The two lists agree with the installer's.** `encore-install.sh` is what
+   installed these packages, so it is the authority on their names and the
+   uninstaller's copy is the thing that can be wrong. Compared as strings, on a
+   machine of the family being compared — it answers for that family only:
+
+   ```sh
+   T=$(mktemp -d); mkdir -p "$T/dnf"; printf '#!/bin/sh\nexit 0\n' > "$T/dnf/dnf"; chmod +x "$T/dnf/dnf"
+   INST=$({ echo 'die() { echo "error: $*" >&2; exit 1; }'
+            sed -n '/^# >>> family block/,/^# <<< family block/p' encore-install.sh
+            echo 'echo $PACKAGES'; } | sh)
+   UNIN=$({ echo 'set -eu'
+            sed -n '/^# >>> leftovers block/,/^# <<< leftovers block/p' encore-uninstall.sh
+            echo 'echo $LEFT_PACKAGES'; } | env PATH="$T/dnf" /bin/sh)
+   echo "installer:   [$INST]"; echo "uninstaller: [$UNIN]"
+   [ "$INST" = "$UNIN" ] && echo "AGREE" || echo "DISAGREE"
+   rm -rf "$T"
+   ```
+
+   **Pass:** `AGREE`, with both lists printed so a disagreement says which name.
+
+   **And every name exists, asked of the machine rather than of this file.**
+   String equality between two files written by the same hand proves only that
+   the hand was consistent. This asks the package database, read-only, nothing
+   installed:
+
+   ```sh
+   for p in $UNIN; do
+     if [ -n "$(dnf -q repoquery --qf '%{name}' "$p" 2>/dev/null)" ]
+     then printf '  exists            %s\n' "$p"
+     else printf '  NO SUCH PACKAGE   %s\n' "$p"; fi
+   done
+   ```
+
+   **Pass:** `exists` against all eight on a dnf machine, and no
+   `NO SUCH PACKAGE`. The apt equivalent is
+   `apt-cache show "$p" >/dev/null 2>&1` and is unrun — it needs the apt test
+   VM, and nothing here can stand in for it.
+
+   **And no printed line is wider than 72 columns.** A correct name broken
+   across a line wrap is as useless to copy as a name that does not exist, and
+   the screen this message is most likely to be read on is the narrowest one
+   the product mentions: `README.md` sends somebody whose terminal will not
+   start to a text console on `Ctrl+Alt+F1`..`F6`, which is 80 columns. The
+   list is computed and has already grown by one name, so the width is
+   asserted rather than eyeballed. This runs the block **and the `echo` lines
+   after it**, up to but not including `LEFT=0`:
+
+   ```sh
+   T=$(mktemp -d)
+   for pm in apt-get dnf none; do
+     mkdir -p "$T/$pm"
+     [ "$pm" = none ] || { printf '#!/bin/sh\nexit 0\n' > "$T/$pm/$pm"; chmod +x "$T/$pm/$pm"; }
+     printf '%-8s ' "$pm"
+     { echo 'set -eu'
+       sed -n '/^# >>> leftovers block/,/^LEFT=0/p' encore-uninstall.sh | sed '$d'
+     } | env PATH="$T/$pm" /bin/sh |
+     awk '{ n++; if (length($0) > m) m = length($0) } END { printf "lines: %d, widest: %d%s\n", n+0, m+0, (n+0 > 0 && m+0 <= 72) ? "" : "   <-- FAIL" }'
+   done
+   rm -rf "$T"
+   ```
+
+   **`lines:` is this half's control, and it must not be zero.** An awk
+   `END` block over no input prints `widest: 0`, and 0 is under 72 — so a
+   broken `sed` range, a renamed marker or a script that died before printing
+   all read as a pass on width alone. **Pass:** `lines: 7` on apt and dnf,
+   `lines: 10` on the `none` arm, `widest: 69` on all three, and no `FAIL`.
+   Both `/bin/sh` and `dash` must give the same numbers — `${#CAND}` is what
+   places the breaks, and it counts bytes in one shell and characters in the
+   other.
+
 **Results, 2026-10-04, on the author's Fedora 44 workstation — read-only,
 nothing installed, no `encore` identity created, `encore-install.sh` not run:**
 
@@ -800,18 +929,125 @@ the argument count, and was watched failing first.**
   picks is a repository fact, shown by the two queries above; watching the
   unusable session itself belongs to 14b.
 
+**Addendum, 2026-10-05, same machine and same conditions — read-only, nothing
+installed, no `encore` identity created, neither `encore-install.sh` nor
+`encore-uninstall.sh` run. Check 7 is new, and was watched failing first.**
+
+- **Red, and it failed twice over.** Against the uninstaller before the change,
+  `block lines: 0` — there was no block to run — and all three families printed
+  `/bin/sh: line 2: LEFT_PACKAGES: unbound variable`, `exit=1`. The control is
+  what makes that red legible: a bare "no wrong names were printed" would have
+  been satisfied by those three runs, which printed no names at all.
+- **Red, on the defect itself.** The names the old lines 123–124 printed, asked
+  of this Fedora machine's package database, came back
+  `NO SUCH PACKAGE  remmina-plugin-rdp` and
+  `NO SUCH PACKAGE  pipewire-pulse`, with `remmina`, `cage`, `kbd`, `pipewire`
+  and `wireplumber` existing, and `openh264` not printed at all. That is the
+  reported defect reproduced as a measurement rather than as an argument: two
+  names a Fedora reader cannot act on, one package on the machine the list did
+  not mention.
+- **Green.** `block lines: 17`, and the three expected lines exactly, each
+  `exit=0`. The `none` arm names the five packages both families spell the same
+  and says in the message that the other three cannot be named here, rather
+  than guessing a family.
+- **The lists agree.** `AGREE`, both printing
+  `remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber openh264`.
+- **All eight names exist**, by `dnf -q repoquery`, with no `NO SUCH PACKAGE`.
+- **The rendered message was read, not inferred** — the block plus its `echo`
+  lines, run under the dnf stub tree:
+
+  ```
+  Removed. Still on this machine, deliberately:
+    remmina remmina-plugins-rdp cage kbd pipewire pipewire-pulseaudio wireplumber openh264    (ordinary packages)
+    the copied files in your home directory (encore-*.sh, *.service, …)
+  ```
+
+- **The width was the second red, found in review and fixed in the same
+  ticket.** The first fix printed the computed list on one line, which was 111
+  columns on dnf and 96 on apt where the two hand-wrapped lines it replaced
+  were about 60. The width half of the check was run against it first and said
+  so: `apt-get lines: 5, widest: 96 <-- FAIL`, `dnf lines: 5, widest: 111
+  <-- FAIL`, `none lines: 8, widest: 74 <-- FAIL` — the `none` arm was over by
+  two columns as well, which eyeballing had missed. **This matters on exactly
+  the screen the product recommends for a terminal that will not start**: 80
+  columns, and a name broken across the wrap is as useless to copy as a name
+  that does not exist.
+- **Green on width, and the same under both shells.** `lines: 7, widest: 69`
+  for apt and dnf, `lines: 10, widest: 69` for `none`, with no `FAIL`, and
+  byte-for-byte the same numbers under `/bin/sh` (bash 5.3.9) and
+  `/usr/bin/dash` (0.5.13.1). The dnf list breaks after `pipewire,` and the
+  apt list after `pipewire-pulse,`; neither break is written down anywhere, and
+  the ninth name will move them without anyone editing a string. The widest
+  line in all three arms is the pre-existing home-directory line, not the
+  package list.
+- **The rendered dnf message, read rather than inferred:**
+
+  ```
+  Removed. Still on this machine, deliberately:
+    ordinary packages, which the machine may want for other reasons:
+      remmina, remmina-plugins-rdp, cage, kbd, pipewire,
+      pipewire-pulseaudio, wireplumber, openh264
+    the copied files in your home directory (encore-*.sh, *.service, …)
+  ```
+- **The apt arm of this check is unrun** on a real apt machine, exactly as
+  check 3's apt side is. What was watched here is the apt *arm of the block*,
+  selected by a fabricated `apt-get`; whether those seven names exist in Debian
+  or Ubuntu was not asked of any machine.
+
 ### 14b — a scratch Fedora machine converts
 
-**Never run.** Needs a Fedora machine that can be snapshotted and reverted —
-not the author's workstation, which is the RDP target and out of scope (D-002).
-Record, in order and by observation:
+**Install half passed — Fedora 44 VM, 2026-10-05. Terminal half never run.**
 
-- `==> package manager: dnf` appears before anything is installed.
-- the eight dnf package names install.
-- **`openh264` is in the transaction, and `noopenh264` is not what satisfies
-  `libopenh264.so.8`.** This is the one thing on this machine that cannot be
-  checked anywhere else, because the author's workstation already has the real
-  decoder. Read the transaction dnf prints, and then the installed truth:
+The install was watched end to end on a scratch Fedora 44 virtual machine, by
+the author, from the printed output of `sudo ./encore-install.sh`. Four things
+are now observation rather than belief:
+
+- **`==> package manager: dnf`** printed before anything was installed. The
+  family block picked the dnf arm on a real dnf machine, not off-target.
+- **The dnf install path ran and completed.** `dnf install -y -q $PACKAGES`
+  resolved and installed the Fedora package names.
+- **`remmina-plugins-secret` arrived as a weak dependency, exactly as
+  predicted.** The log shows `Installing weak dependencies:` with
+  `remmina-plugins-exec`, `remmina-plugins-secret` and `remmina-plugins-vnc`.
+  This is the fact the whole keyring defect rests on: nobody asks for that
+  plugin, so nobody expects it to be there.
+- **`==> password` completed, and neither guard after it fired.** This is the
+  line that matters most. **Before this ticket a Fedora install died exactly
+  here**, with `no password stored in the profile`, because the plugin search
+  ran before the packages step and found nothing. It completing is the proof
+  that moving the search worked, and that the unit's `/usr/lib64` path is
+  named correctly. The run ended `Installed.` with the expected
+  `WARNING: the password appears in the journal.`
+
+**The one thing this run does not cover: `openh264`.** That package name was
+added to the dnf arm *after* this observation, in `cb94d97`. The run installed
+**seven** packages; the installer now asks for **eight**. So the stub-versus-real
+decoder checks below have never been exercised anywhere, on any machine, and
+the fresh-Fedora `noopenh264` defect has never been watched either happening or
+being prevented. Treat the `openh264` line as unwatched code.
+
+**Nothing in this run was a terminal.** An install completing is not a screen
+showing a session. `R-1` stays `intended` for dnf and `BACKLOG.md` item 16
+stays open until a Fedora machine shows a session.
+
+#### What is left to run
+
+Needs a Fedora machine that can be snapshotted and reverted — not the author's
+workstation, which is the RDP target and out of scope (D-002). Re-run the
+install on a fresh snapshot so the eighth package is exercised, then carry on
+past where the first run stopped. Record, in order and by observation:
+
+- `==> package manager: dnf` appears before anything is installed. *(Watched
+  2026-10-05. Confirm it again rather than assuming it — the point of a
+  re-run is that the installer changed since.)*
+- the eight dnf package names install. *(Seven were watched 2026-10-05. The
+  eighth is `openh264`, below, and is the reason this re-run exists.)*
+- **NOT YET WATCHED ANYWHERE — `openh264` is in the transaction, and
+  `noopenh264` is not what satisfies `libopenh264.so.8`.** This can only be
+  checked on a fresh Fedora. The author's workstation already carries the real
+  decoder, so it cannot show the defect and was never made to; and the
+  2026-10-05 VM run happened before this package name existed. Read the
+  transaction dnf prints, and then the installed truth:
 
   ```sh
   rpm -q openh264 noopenh264
@@ -833,10 +1069,17 @@ Record, in order and by observation:
   neither of the two guards after it fires. **Before this ticket, Fedora
   stopped exactly here** — the password was not written into the profile and
   `no password stored in the profile` was the error — so this line is the one
-  that proves the installer's `find` did its job.
-- the unit coverage check passes silently, or dies naming a path.
-- then tests 1, 3, 4, 7 and 10 from this file, which have never been run on this
-  family.
+  that proves the installer's `find` did its job. *(Watched 2026-10-05 — this
+  is the line that turned red into green.)*
+- the unit coverage check passes silently, or dies naming a path. *(Watched
+  2026-10-05 by inference: the run reached `Installed.`, which is past the
+  check. Silence is the pass condition here, so this is the weakest of the
+  four observations — a check that passes by printing nothing looks identical
+  to a check that did not run.)*
+- **then the terminal, which is the half nobody has seen.** Tests 1, 3, 4, 7
+  and 10 from this file, which have never been run on this family. Until test
+  1 shows a session on a Fedora machine, this family has a working installer
+  and an unproven terminal.
 
 ### 14c — does SELinux change what the screen shows?
 

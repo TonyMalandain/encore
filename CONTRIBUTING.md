@@ -106,6 +106,18 @@ confident argument from reading. **Go and measure it on a machine.**
 column in `docs/tests.md` is what was *watched*, never what is believed. "Never
 run" is an honest entry and appears often.
 
+**Before you write a check, ask it out loud: if the thing this checks were
+absent, broken, or doing nothing, would this report anything different?** If
+the answer is no, the check reports nothing and the pass is decoration. Ask it
+*while writing*, because a check of this shape has by construction never been
+seen to fail, so nothing will ever prompt the question later. This project has
+met that failure six times — a loop over an empty list that passed having
+examined nothing, a check satisfied by a file that did not exist, a package
+that provided a decoder's name and decoded nothing. It is named and all six are
+listed as `H-1` in
+[`docs/architecture/constraints.md`](docs/architecture/constraints.md). Read it
+before adding to `docs/tests.md`.
+
 **Name the machine and the date on every observation.** A pass on the
 development workstation is not a pass on a terminal; `/bin/sh` is `bash` on one
 and `dash` on the other, and that difference has mattered.
